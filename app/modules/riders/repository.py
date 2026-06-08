@@ -1,5 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, true
+from sqlalchemy.exc import IntegrityError
+from app.core.exceptions import IMSException
 
 from app.models.rider import Rider
 
@@ -9,9 +11,13 @@ class RiderRepository:
         self.db = db
 
     async def create_rider(self, rider: Rider):
-        self.db.add(rider)
-        await self.db.flush()
-        return rider
+        try:
+            self.db.add(rider)
+            await self.db.flush()
+            return rider
+        except IntegrityError:
+            await self.db.rollback()
+            raise IMSException("Rider with this phone number already exists", 400)
 
     async def get_rider_by_id(self, rider_id: int):
         result = await self.db.execute(
