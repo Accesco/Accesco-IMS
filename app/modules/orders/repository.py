@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.order import Order, OrderItem
 from app.modules.orders.schemas import OrderCreate
+from sqlalchemy.orm import selectinload
 
 class OrderRepository:
     def __init__(self, db: AsyncSession):
@@ -40,7 +41,14 @@ class OrderRepository:
             self.db.add(db_item)
             
         await self.db.flush()
-        return db_order
+
+        result = await self.db.execute(
+            select(Order)
+            .options(selectinload(Order.items))
+            .where(Order.id == db_order.id)
+        )
+
+        return result.scalar_one()
 
     async def update_order_status(self, order: Order, status: str) -> Order:
         order.status = status
