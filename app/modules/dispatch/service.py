@@ -1,21 +1,22 @@
 from . import repository
-
+from app.core.exceptions import ResourceNotFoundException, IMSException
 
 async def assign_order(db, order_id):
-    order = await repository.get_order_by_id(db, order_id)
+    order = await repository.get_order_for_update(db, order_id)
 
     if not order:
-        raise ValueError("Order not found")
+        raise ResourceNotFoundException("Order not found")
 
-    if order.rider_id:
-        raise ValueError("Order already assigned")
+    if order.status in ["CANCELLED", "COMPLETED"]:
+        raise IMSException(f"Cannot assign rider to order in state: {order.status}", 400)
 
-    available_riders = await repository.get_available_riders(db)
+    if order.rider_id or order.assignment_status == "ASSIGNED":
+        raise IMSException("Order already assigned", 400)
 
-    if not available_riders:
-        raise ValueError("No available riders")
+    selected_rider = await repository.get_available_rider_for_update(db)
 
-    selected_rider = available_riders[0]
+    if not selected_rider:
+        raise IMSException("No available riders", 400)
 
     await repository.assign_rider_to_order(
         db,
