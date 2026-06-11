@@ -7,6 +7,10 @@ venv/
 .env
 
 # Python
+# Virtual environment
+venv/
+
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
@@ -49,3 +53,13 @@ dist/
 # Temporary files
 temp/
 tmp/
+
+# Environment variables
+.env
+
+# Pytest cache
+.pytest_cache/
+
+# IDE files
+.vscode/
+.idea/
