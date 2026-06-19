@@ -1,6 +1,6 @@
 # Predictive Replenishment Engine
 **Assesco Living — Dark Store Inventory Intelligence**
-**Author:** Jai Jain (ML Intern) | **Version:** 0.2 | **Date:** June 2026
+**Version:** 0.2 | **Date:** June 2026
 
 ---
 
