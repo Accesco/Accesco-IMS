@@ -1,4 +1,5 @@
 import pytest
+import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.inventory.service import InventoryService
 from app.modules.inventory.schemas import InventoryReservationCreate, InventoryItemCreate
@@ -7,7 +8,7 @@ from app.models.product import Product
 from app.models.inventory import InventoryItem, InventoryReservation
 from app.core.exceptions import InsufficientStockException
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def setup_store_and_product(db_session: AsyncSession):
     # Setup Store
     store = Store(name="Test Store", address="Test Addr", city="Test City", state="Test State", active=True)

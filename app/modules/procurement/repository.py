@@ -37,6 +37,7 @@ class ProcurementRepository:
             self.db.add(db_item)
             
         await self.db.flush()
+        await self.db.refresh(db_po, attribute_names=["items"])  # Eagerly load items; avoids async lazy-load MissingGreenlet
         return db_po
 
     async def update_purchase_order_status(self, po: PurchaseOrder, status: str) -> PurchaseOrder:

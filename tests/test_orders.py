@@ -1,4 +1,5 @@
 import pytest
+import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -9,7 +10,7 @@ from app.models.outbox import OutboxEvent
 from app.modules.orders.service import OrderService
 from app.modules.orders.schemas import OrderCreate, OrderItemCreate
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def setup_test_data(db_session: AsyncSession):
     # Create Store
     store = Store(name="Order Store", address="Addr", city="City", state="State", active=True)
