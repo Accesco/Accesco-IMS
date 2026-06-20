@@ -37,12 +37,25 @@ async def db() -> AsyncSession:
 
 @pytest_asyncio.fixture
 async def http_client(db: AsyncSession):
-    async def _override():
+    from unittest.mock import MagicMock
+    from app.modules.auth.routes import get_current_user
+
+    # Mock an Admin user so RoleChecker lets all requests through
+    mock_role = MagicMock(); mock_role.name = "Admin"
+    mock_user = MagicMock(); mock_user.roles = [mock_role]; mock_user.id = 1
+
+    async def _override_db():
         yield db
-    app.dependency_overrides[get_db] = _override
+
+    async def _override_auth():
+        return mock_user
+
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[get_current_user] = _override_auth
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
     app.dependency_overrides.pop(get_db, None)
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest_asyncio.fixture

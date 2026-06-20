@@ -25,15 +25,20 @@ class InventoryRepository:
     async def get_item_by_store_and_product_with_lock(self, store_id: int, product_id: int) -> Optional[InventoryItem]:
         """
         Uses row-level locking (SELECT ... FOR UPDATE) to prevent concurrency anomalies.
+        Skipped for SQLite (used in tests) which does not support FOR UPDATE.
         """
-        result = await self.db.execute(
+        query = (
             select(InventoryItem)
             .where(
                 InventoryItem.store_id == store_id,
                 InventoryItem.product_id == product_id
             )
-            .with_for_update()
         )
+        # FOR UPDATE is a PostgreSQL feature; SQLite (test DB) does not support it
+        dialect = self.db.bind.dialect.name if self.db.bind else "sqlite"
+        if dialect != "sqlite":
+            query = query.with_for_update()
+        result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
     async def get_all_items(self, skip: int = 0, limit: int = 100) -> List[InventoryItem]:
@@ -65,11 +70,14 @@ class InventoryRepository:
         return result.scalar_one_or_none()
 
     async def get_reservation_by_id_with_lock(self, res_id: int) -> Optional[InventoryReservation]:
-        result = await self.db.execute(
+        query = (
             select(InventoryReservation)
             .where(InventoryReservation.id == res_id)
-            .with_for_update()
         )
+        dialect = self.db.bind.dialect.name if self.db.bind else "sqlite"
+        if dialect != "sqlite":
+            query = query.with_for_update()
+        result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
     async def create_reservation(
