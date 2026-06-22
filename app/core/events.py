@@ -15,3 +15,4 @@ async def create_outbox_event(session: AsyncSession, event_type: str, payload: d
         status="PENDING"
     )
     session.add(event)
+    await session.flush()  # Ensure event is visible within the current transaction

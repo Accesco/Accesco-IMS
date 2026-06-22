@@ -1,19 +1,23 @@
 import pytest
+import pytest_asyncio
 import asyncio
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.core.database import get_db, Base
+from app.core.database import get_db
+from app.models.base import Base  # All models inherit from this Base, not app.core.database.Base
 
-# Setup in-memory SQLite for testing database operations
-# Note: sqlite+aiosqlite is standard for async testing in python.
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# sqlite:///:memory: gives each connection its own isolated DB.
+# The URI form with cache=shared lets all connections share the same named in-memory DB.
+TEST_DATABASE_URL = "sqlite+aiosqlite:///file:testdb?mode=memory&cache=shared&uri=true"
 
 test_engine = create_async_engine(
     TEST_DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 
 TestingSessionLocal = async_sessionmaker(
@@ -33,7 +37,7 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     # Create tables
     async with test_engine.begin() as conn:

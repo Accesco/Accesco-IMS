@@ -1,4 +1,6 @@
 import pytest
+import pytest_asyncio
+from contextlib import asynccontextmanager
 from unittest.mock import patch, MagicMock
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -9,8 +11,15 @@ from app.models.order import Order, OrderItem
 from app.models.inventory import InventoryItem, InventoryReservation
 from app.models.procurement import PurchaseOrder
 from app.workers.kafka_consumer import process_message
+from sqlalchemy.orm import selectinload
 
-@pytest.fixture
+@asynccontextmanager
+async def _noop_ctx(session: AsyncSession):
+    """Yield session without closing it — lets the test fixture own the lifecycle."""
+    yield session
+
+
+@pytest_asyncio.fixture
 async def setup_consumer_data(db_session: AsyncSession):
     # Create store
     store = Store(name="Consumer Store", address="Addr", city="City", state="State", active=True)
@@ -54,7 +63,7 @@ async def test_consumer_payment_confirmed(db_session: AsyncSession, setup_consum
     async def mock_session_maker():
         return db_session
         
-    with patch("app.workers.kafka_consumer.async_session_maker", return_value=db_session):
+    with patch("app.workers.kafka_consumer.async_session_maker", lambda: _noop_ctx(db_session)):
         await process_message("payments.confirmed", payload)
         
     # Reload and verify order status
@@ -94,11 +103,13 @@ async def test_consumer_inventory_low(db_session: AsyncSession, setup_consumer_d
         "reorder_level": 5
     }
     
-    with patch("app.workers.kafka_consumer.async_session_maker", return_value=db_session):
+    with patch("app.workers.kafka_consumer.async_session_maker", lambda: _noop_ctx(db_session)):
         await process_message("inventory.low", payload)
         
-    # Verify draft PO was created
-    result = await db_session.execute(select(PurchaseOrder))
+    # Verify draft PO was created (use selectinload to avoid async lazy-load on po.items)
+    result = await db_session.execute(
+        select(PurchaseOrder).options(selectinload(PurchaseOrder.items))
+    )
     pos = result.scalars().all()
     assert len(pos) == 1
     po = pos[0]
@@ -140,7 +151,7 @@ async def test_consumer_order_cancelled(db_session: AsyncSession, setup_consumer
         "order_id": order.id
     }
     
-    with patch("app.workers.kafka_consumer.async_session_maker", return_value=db_session):
+    with patch("app.workers.kafka_consumer.async_session_maker", lambda: _noop_ctx(db_session)):
         await process_message("orders.cancelled", payload)
         
     # Verify reservation released
