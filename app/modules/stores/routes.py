@@ -1,3 +1,6 @@
+# app/modules/stores/routes.py
+from __future__ import annotations
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
@@ -9,7 +12,6 @@ from app.modules.stores.service import StoreService
 
 router = APIRouter(prefix="/stores", tags=["stores"])
 
-# Role permission helpers
 admin_or_manager = RoleChecker(["Admin", "StoreManager"])
 all_authorized = RoleChecker(["Admin", "StoreManager", "ProcurementManager", "InventoryManager", "Viewer"])
 
