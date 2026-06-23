@@ -1,6 +1,66 @@
-version: '3.8'
+# ==============================================================
+# Accesco IMS — Docker Compose (Full Local Development Stack)
+# ==============================================================
+# Start everything:  docker compose up --build
+# Stop everything:   docker compose down
+# Reset database:    docker compose down -v
+# ==============================================================
 
 services:
+  # ---- FastAPI Backend ----
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: accesco-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # App
+      PROJECT_NAME: "Accesco Living IMS"
+      API_V1_STR: "/api/v1"
+      DEBUG: "true"
+      # Security
+      JWT_SECRET_KEY: "supersecretkeythatisverylongandsecurechangeinproduction"
+      JWT_ALGORITHM: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+      # Database — points to the 'postgres' service
+      DATABASE_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/accesco_ims"
+      # Redis — points to the 'redis' service
+      REDIS_URL: "redis://redis:6379/0"
+      # Kafka — uses the internal listener (29092)
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      # Razorpay (test keys)
+      RAZORPAY_KEY_ID: "rzp_test_mockkeyid123"
+      RAZORPAY_KEY_SECRET: "mockkeysecret456"
+      RAZORPAY_WEBHOOK_SECRET: "mockwebhooksecret789"
+      # Entrypoint config
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: "postgres"
+      RUN_SEED: "true"
+    volumes:
+      # Mount source code for live reload during development
+      - .:/app
+      # Prevent the host venv from overriding the container's packages
+      - /app/venv
+      - /app/__pycache__
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # ---- PostgreSQL Database ----
   postgres:
     image: postgres:16-alpine
     container_name: accesco-postgres
@@ -18,6 +78,7 @@ services:
       timeout: 5s
       retries: 5
 
+  # ---- Redis Cache ----
   redis:
     image: redis:7-alpine
     container_name: accesco-redis
@@ -31,6 +92,7 @@ services:
       timeout: 5s
       retries: 5
 
+  # ---- Zookeeper (Kafka dependency) ----
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: accesco-zookeeper
@@ -40,6 +102,7 @@ services:
     ports:
       - "2181:2181"
 
+  # ---- Apache Kafka ----
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: accesco-kafka
@@ -62,7 +125,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
 
+  # ---- PgAdmin (Database Management UI) ----
   pgadmin:
     image: dpage/pgadmin4:8
     container_name: accesco-pgadmin

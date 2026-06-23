@@ -71,11 +71,73 @@ app/
 
 ---
 
-## Local Setup Instructions
+## 🐳 Quick Start with Docker
+
+> **Run the entire backend stack with a single command.** No Python, PostgreSQL, or Kafka installation required — only Docker.
+
+### Prerequisites
+* [Docker](https://docs.docker.com/get-docker/) & Docker Compose v2+
+
+### 1. Clone & Configure
+```bash
+git clone https://github.com/Accesco/Accesco-IMS.git
+cd Accesco-IMS
+cp .env.example .env
+```
+
+### 2. Start Everything
+```bash
+docker compose up --build
+```
+This builds the FastAPI backend image and starts **all services**:
+
+| Service | URL / Port | Notes |
+|---|---|---|
+| **FastAPI Backend** | `http://localhost:8000` | Swagger UI at `/docs` |
+| **PostgreSQL** | `localhost:5432` | User: `postgres` / Pass: `postgres` |
+| **Redis** | `localhost:6379` | — |
+| **Kafka** | `localhost:9092` | Internal: `kafka:29092` |
+| **Zookeeper** | `localhost:2181` | Required by Kafka |
+| **PgAdmin** | `http://localhost:5050` | Login: `admin@accesco.com` / `admin` |
+
+The backend container automatically:
+- ✅ Waits for PostgreSQL to be ready
+- ✅ Runs Alembic database migrations
+- ✅ Seeds the database (on first run, controlled by `RUN_SEED=true`)
+- ✅ Starts uvicorn with live reload
+
+### 3. Verify
+```bash
+curl http://localhost:8000/health       # App health
+curl http://localhost:8000/health/db    # Database connectivity
+curl http://localhost:8000/health/redis # Redis connectivity
+curl http://localhost:8000/health/kafka # Kafka connectivity
+```
+
+### Docker Commands Reference
+
+| Command | Description |
+|---|---|
+| `docker compose up --build` | Build & start all services |
+| `docker compose up -d` | Start in detached (background) mode |
+| `docker compose down` | Stop all services |
+| `docker compose down -v` | Stop & **remove volumes** (resets database) |
+| `docker compose logs -f backend` | Tail backend logs |
+| `docker compose restart backend` | Restart only the backend |
+
+*Default Seeded Credentials:*
+* **Admin Username**: `admin`
+* **Admin Password**: `adminpassword`
+
+---
+
+## Local Setup Instructions (Without Docker)
+
+> For developers who prefer running Python directly on their host machine.
 
 ### Prerequisites
 * Python 3.12+
-* Docker & Docker Compose
+* Docker & Docker Compose (for infrastructure services)
 * Make (optional, but convenient)
 
 ### 1. Clone & Configure Environment
@@ -85,9 +147,9 @@ cp .env.example .env
 ```
 
 ### 2. Launch Infrastructure Services
-Start the database, caching, messaging, and administration services in the background:
+Start only the infrastructure services (database, cache, messaging) in the background:
 ```bash
-docker-compose up -d
+docker compose up -d postgres redis zookeeper kafka pgadmin
 ```
 This spins up:
 * **PostgreSQL** on port `5432`
