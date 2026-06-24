@@ -1,3 +1,6 @@
+# app/modules/stores/repository.py
+from __future__ import annotations
+
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -26,7 +29,9 @@ class StoreRepository:
             address=store_data.address,
             city=store_data.city,
             state=store_data.state,
-            active=store_data.active
+            active=store_data.active,
+            latitude=store_data.latitude,
+            longitude=store_data.longitude
         )
         self.db.add(db_store)
         await self.db.flush()

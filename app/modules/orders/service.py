@@ -1,10 +1,19 @@
-from typing import List, Optional
+# app/modules/orders/service.py
+from __future__ import annotations
+
+from datetime import datetime, timezone, timedelta
+from typing import List
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.modules.orders.repository import OrderRepository
-from app.modules.orders.schemas import OrderCreate
-from app.models.order import Order
+
 from app.core.exceptions import ResourceNotFoundException, IMSException
 from app.core.events import create_outbox_event
+from app.models.order import Order
+from app.models.store import Store
+from app.modules.orders.repository import OrderRepository
+from app.modules.orders.schemas import OrderCreate
+from app.core.geo_utils import haversine_distance, classify_zone_and_sla
+
 
 class OrderService:
     def __init__(self, db: AsyncSession):
@@ -23,9 +32,27 @@ class OrderService:
         if not order_data.items:
             raise IMSException("Cannot place an order with empty items", 400)
             
-        order = await self.repo.create_order(order_data, customer_id)
-        
-        # Prepare Kafka outbox event
+        # 1. Fetch Store Coordinates (Section 04)
+        result = await self.repo.db.execute(
+            select(Store).where(Store.id == order_data.store_id)
+        )
+        store = result.scalar_one_or_none()
+        if not store:
+            raise ResourceNotFoundException(f"Store with ID {order_data.store_id} not found")
+            
+        if store.latitude is None or store.longitude is None:
+            raise IMSException("Store does not have coordinates configured", 400)
+
+        # 2. Derive zone and SLA duration using geo-utilities (Section 04)
+        dist_km = haversine_distance(store.latitude, store.longitude, order_data.latitude, order_data.longitude)
+        delivery_zone, sla_minutes = classify_zone_and_sla(dist_km)
+        sla_deadline = datetime.now(timezone.utc) + timedelta(minutes=sla_minutes)
+
+        # 3. Create database entities with computed zone data [1]
+        order = await self.repo.create_order(order_data, customer_id, delivery_zone, sla_deadline)
+        await self.repo.db.commit()
+
+        # 4. Prepare Kafka outbox event
         items_payload = [
             {
                 "product_id": item.product_id,
@@ -43,6 +70,10 @@ class OrderService:
                 "customer_id": customer_id,
                 "store_id": order_data.store_id,
                 "total_amount": float(order.total_amount),
+                "latitude": order.latitude,
+                "longitude": order.longitude,
+                "delivery_zone": order.delivery_zone,
+                "sla_deadline": order.sla_deadline.isoformat(),
                 "items": items_payload
             }
         )
@@ -55,8 +86,9 @@ class OrderService:
             raise IMSException(f"Order cannot be cancelled in state: {order.status}", 400)
             
         await self.repo.update_order_status(order, "CANCELLED")
-        await self.repo.update_order_payment(order, "REFUNDED") # Assume refund/cancelled logic
-        
+        await self.repo.update_order_payment(order, "REFUNDED")
+        await self.repo.db.commit()
+
         # Emit orders.cancelled event
         await create_outbox_event(
             self.repo.db,
@@ -73,4 +105,5 @@ class OrderService:
         order = await self.get_order_by_id(order_id)
         await self.repo.update_order_status(order, "CONFIRMED")
         await self.repo.update_order_payment(order, "COMPLETED")
+        await self.repo.db.commit()
         return order

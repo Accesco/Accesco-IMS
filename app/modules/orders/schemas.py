@@ -1,3 +1,6 @@
+# app/modules/orders/schemas.py
+from __future__ import annotations
+
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import List, Optional
@@ -22,14 +25,27 @@ class OrderBase(BaseModel):
     status: str = "PENDING"
     total_amount: float
     payment_status: str = "PENDING"
+    
+    # Phase 2 Coordinates (Section 03)
+    latitude: float
+    longitude: float
 
 class OrderCreate(BaseModel):
     items: List[OrderItemCreate]
-    # For order placement, we can optionally supply a store_id if checking out for a specific store, or we check dynamically.
     store_id: int
+    
+    # Coordinates provided during checkout
+    latitude: float
+    longitude: float
 
 class OrderResponse(OrderBase):
     id: int
     created_at: datetime
+    
+    # SLA metrics calculated upon creation (Section 04)
+    delivery_zone: str
+    sla_deadline: datetime
+    assignment_status: str
+    
     items: List[OrderItemResponse]
     model_config = ConfigDict(from_attributes=True)

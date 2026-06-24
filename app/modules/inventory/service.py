@@ -1,3 +1,6 @@
+# app/modules/inventory/service.py
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,7 +66,13 @@ class InventoryService:
                 }
             )
 
-        return item
+        # Commit transactional change and re-retrieve fully-hydrated object to prevent serialization errors [1]
+        await self.repo.db.commit()
+        refreshed_item = await self.repo.get_item_by_id(item.id)
+        if not refreshed_item:
+             raise ResourceNotFoundException("Failed to load inventory item after database commit")
+             
+        return refreshed_item
 
     async def reserve_stock(self, reservation_data: InventoryReservationCreate) -> InventoryReservation:
         """
@@ -80,19 +89,15 @@ class InventoryService:
             raise ResourceNotFoundException(f"Inventory item not found for store {store_id} and product {product_id}")
 
         if item.available_quantity < quantity:
-            raise InsufficientStockException(
-                f"Insufficient stock for product {product_id} in store {store_id}. "
-                f"Requested: {quantity}, Available: {item.available_quantity}"
-            )
+            raise IMSException("Insufficient stock available", 400)
 
-        # Deduct available, increment reserved
         item.available_quantity -= quantity
         item.reserved_quantity += quantity
         await self.repo.db.flush()
 
-        # Create reservation record
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=reservation_data.expires_in_seconds)
-        reservation = await self.repo.create_reservation(
+        # Generate Reservation
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=15) # 15-minute locks
+        res = await self.repo.create_reservation(
             store_id=store_id,
             product_id=product_id,
             quantity=quantity,
@@ -105,8 +110,8 @@ class InventoryService:
             self.repo.db,
             "inventory.reserved",
             {
-                "reservation_id": reservation.id,
-                "order_id": reservation.order_id,
+                "reservation_id": res.id,
+                "order_id": res.order_id,
                 "store_id": store_id,
                 "product_id": product_id,
                 "quantity": quantity,
@@ -127,13 +132,15 @@ class InventoryService:
                 }
             )
 
-        return reservation
+        # Commit transaction and return refreshed schema [1]
+        await self.repo.db.commit()
+        refreshed_res = await self.repo.get_reservation_by_id(res.id)
+        if not refreshed_res:
+            raise ResourceNotFoundException("Failed to load reservation after database commit")
+            
+        return refreshed_res
 
     async def confirm_reservation(self, reservation_id: int) -> InventoryReservation:
-        """
-        Confirms a reservation (e.g., when payment succeeds).
-        Decrements reserved quantity (stock deduction finalized).
-        """
         res = await self.repo.get_reservation_by_id_with_lock(reservation_id)
         if not res:
             raise ResourceNotFoundException(f"Reservation {reservation_id} not found")
@@ -141,17 +148,14 @@ class InventoryService:
         if res.status != "PENDING":
             raise IMSException(f"Reservation {reservation_id} is already in state: {res.status}", 400)
 
-        # Lock inventory item
         item = await self.repo.get_item_by_store_and_product_with_lock(res.store_id, res.product_id)
         if not item:
             raise ResourceNotFoundException(f"Inventory item not found for store {res.store_id} and product {res.product_id}")
 
         res.status = "COMPLETED"
-        # Deduct from reserved quantity
         item.reserved_quantity = max(0, item.reserved_quantity - res.quantity)
         await self.repo.db.flush()
 
-        # Emit inventory.updated outbox event
         await create_outbox_event(
             self.repo.db,
             "inventory.updated",
@@ -164,13 +168,14 @@ class InventoryService:
             }
         )
 
-        return res
+        await self.repo.db.commit()
+        refreshed_res = await self.repo.get_reservation_by_id(res.id)
+        if not refreshed_res:
+             raise ResourceNotFoundException("Failed to load reservation after database commit")
+             
+        return refreshed_res
 
     async def release_reservation(self, reservation_id: int, status: str = "CANCELLED") -> InventoryReservation:
-        """
-        Releases a reservation (cancelled order or expired).
-        Restores reserved quantity back to available quantity.
-        """
         res = await self.repo.get_reservation_by_id_with_lock(reservation_id)
         if not res:
             raise ResourceNotFoundException(f"Reservation {reservation_id} not found")
@@ -178,18 +183,15 @@ class InventoryService:
         if res.status != "PENDING":
             raise IMSException(f"Reservation {reservation_id} is already in state: {res.status}", 400)
 
-        # Lock inventory item
         item = await self.repo.get_item_by_store_and_product_with_lock(res.store_id, res.product_id)
         if not item:
             raise ResourceNotFoundException(f"Inventory item not found for store {res.store_id} and product {res.product_id}")
 
         res.status = status
-        # Restore reserved to available
         item.available_quantity += res.quantity
         item.reserved_quantity = max(0, item.reserved_quantity - res.quantity)
         await self.repo.db.flush()
 
-        # Emit inventory.released outbox event
         await create_outbox_event(
             self.repo.db,
             "inventory.released",
@@ -203,12 +205,14 @@ class InventoryService:
             }
         )
 
-        return res
+        await self.repo.db.commit()
+        refreshed_res = await self.repo.get_reservation_by_id(res.id)
+        if not refreshed_res:
+             raise ResourceNotFoundException("Failed to load reservation after database commit")
+             
+        return refreshed_res
 
     async def release_expired_reservations(self) -> int:
-        """
-        Sweeps expired reservations, releasing their holds.
-        """
         expired = await self.repo.get_expired_reservations()
         count = 0
         for res in expired:
@@ -216,7 +220,6 @@ class InventoryService:
                 await self.release_reservation(res.id, status="EXPIRED")
                 count += 1
             except Exception:
-                # Log error and continue with next to avoid blocking the whole sweep
                 pass
         return count
         

@@ -1,6 +1,7 @@
+# app/api/v1/router.py
 from fastapi import APIRouter
 
-# Import all module routers
+# Import your existing routers
 from app.modules.auth.routes import router as auth_router
 from app.modules.stores.routes import router as stores_router
 from app.modules.products.routes import router as products_router
@@ -12,9 +13,12 @@ from app.modules.procurement.routes import router as procurement_router
 from app.modules.riders.routes import router as riders_router
 from app.modules.dispatch.routes import router as dispatch_router
 
+# Phase 2 Addition: Import Communities Router
+from app.modules.communities.routes import router as communities_router
+
 api_router = APIRouter()
 
-# Mount all endpoints under API v1
+# Include existing routers
 api_router.include_router(auth_router)
 api_router.include_router(stores_router)
 api_router.include_router(products_router)
@@ -25,3 +29,6 @@ api_router.include_router(payments_router)
 api_router.include_router(procurement_router)
 api_router.include_router(riders_router)
 api_router.include_router(dispatch_router)
+
+# Phase 2 Addition: Include Communities Router
+api_router.include_router(communities_router)
