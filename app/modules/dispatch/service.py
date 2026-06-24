@@ -142,6 +142,12 @@ async def ingest_new_order(db: AsyncSession, order_id: int) -> Dict[str, Any]:
     if not order:
         raise ResourceNotFoundException("Order not found")
 
+    if order.status in ["CANCELLED", "COMPLETED"]:
+        raise IMSException(f"Order is {order.status}", 400)
+    
+    if order.assignment_status == "ASSIGNED" or order.rider_id is not None:
+        raise IMSException("Order already assigned", 400)
+
     store = await repository.get_store_by_id(db, order.store_id)
     if not store:
         raise IMSException("Origin Dark Store not found", 404)

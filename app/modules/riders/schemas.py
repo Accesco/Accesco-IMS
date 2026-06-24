@@ -8,7 +8,7 @@ class RiderBase(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     is_available: bool = True
-    status: str = "ONLINE"
+    status: str = "IDLE"
 
 
 class RiderCreate(RiderBase):
