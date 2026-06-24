@@ -1,0 +1,48 @@
+# Virtual environments
+venv/
+accesco_env/
+.env/
+
+# Version control
+.git/
+.github/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*$py.class
+*.egg-info/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment files (injected via docker-compose)
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# ML/Data artifacts (not needed for backend)
+replenishment-engine/
+
+# Build artifacts
+build/
+dist/
+
+# Temporary files
+temp/
+tmp/
+
+# Docker files (no need to copy into the image)
+docker-compose.yml
+Dockerfile
+.dockerignore
