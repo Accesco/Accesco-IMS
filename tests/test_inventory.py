@@ -6,7 +6,7 @@ from app.modules.inventory.schemas import InventoryReservationCreate, InventoryI
 from app.models.store import Store
 from app.models.product import Product
 from app.models.inventory import InventoryItem, InventoryReservation
-from app.core.exceptions import InsufficientStockException
+from app.core.exceptions import IMSException
 
 @pytest_asyncio.fixture
 async def setup_store_and_product(db_session: AsyncSession):
@@ -85,7 +85,7 @@ async def test_reserve_stock_insufficient_fails(db_session: AsyncSession, setup_
     )
     
     # Act & Assert
-    with pytest.raises(InsufficientStockException):
+    with pytest.raises(IMSException):
         await service.reserve_stock(res_data)
         
     # Check that stock was not modified

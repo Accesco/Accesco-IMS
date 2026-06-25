@@ -1,6 +1,7 @@
 import pytest
 import pytest_asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -35,7 +36,12 @@ async def setup_consumer_data(db_session: AsyncSession):
     db_session.add(inv)
     
     # Setup order
-    order = Order(customer_id=1, store_id=store.id, status="PENDING", total_amount=10.00, payment_status="PENDING")
+    order = Order(
+        customer_id=1, store_id=store.id, status="PENDING",
+        total_amount=10.00, payment_status="PENDING",
+        latitude=12.9716, longitude=77.5946,
+        sla_deadline=datetime.now(timezone.utc) + timedelta(minutes=30),
+    )
     db_session.add(order)
     await db_session.commit()
     

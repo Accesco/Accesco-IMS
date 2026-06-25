@@ -18,6 +18,7 @@ from app.modules.riders.service import RiderService
 from app.modules.riders.repository import RiderRepository
 from app.modules.riders.schemas import RiderCreate
 from app.core.exceptions import IMSException
+from app.modules.riders.service import RiderService, ResourceNotFoundException
 
 # File-based SQLite so all sessions in a test share the same data
 _DB = os.path.join(tempfile.gettempdir(), "ims_riders_test.db")
@@ -60,7 +61,7 @@ async def http_client(db: AsyncSession):
 
 @pytest_asyncio.fixture
 async def seeded_rider(db: AsyncSession) -> Rider:
-    r = Rider(name="Seeded", phone="9000000001", is_available=True, status="ONLINE")
+    r = Rider(name="Seeded", phone="9000000001", is_available=True, status="IDLE")
     db.add(r); await db.commit(); await db.refresh(r)
     return r
 
@@ -80,14 +81,14 @@ class TestCreateRiderAPI:
         resp = await http_client.post("/api/v1/riders", json={
             "name": "Ravi Kumar", "phone": "9876543210",
             "latitude": 28.6139, "longitude": 77.2090,
-            "is_available": True, "status": "ONLINE",
+            "is_available": True, "status": "IDLE",
         })
         assert resp.status_code == 200
         d = resp.json()
         assert d["name"] == "Ravi Kumar"
         assert d["phone"] == "9876543210"
         assert d["is_available"] is True
-        assert d["status"] == "ONLINE"
+        assert d["status"] == "IDLE"
         assert isinstance(d["id"], int)
 
     @pytest.mark.asyncio
@@ -115,7 +116,7 @@ class TestCreateRiderAPI:
     async def test_default_status_online(self, http_client):
         r = await http_client.post("/api/v1/riders", json={"name": "D", "phone": "9444444444"})
         assert r.status_code == 200
-        assert r.json()["status"] == "ONLINE"
+        assert r.json()["status"] == "IDLE"
 
     @pytest.mark.asyncio
     async def test_default_is_available_true(self, http_client):
@@ -186,14 +187,15 @@ class TestRiderService:
         assert r is not None and r.id == seeded_rider.id
 
     @pytest.mark.asyncio
-    async def test_get_by_id_missing_returns_none(self, db):
-        assert await RiderService(db).get_rider(99999) is None
+    async def test_get_by_id_missing_raises(self, db):
+        with pytest.raises(ResourceNotFoundException):
+            await RiderService(db).get_rider(99999)
 
     @pytest.mark.asyncio
     async def test_defaults_available_online(self, db):
         r = await RiderService(db).create_rider(RiderCreate(name="Fr", phone="8000000003"))
         assert r.is_available is True
-        assert r.status == "ONLINE"
+        assert r.status == "IDLE"
 
 
 # ─── Repository Tests ─────────────────────────────────────────────────────────
