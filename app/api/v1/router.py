@@ -15,6 +15,7 @@ from app.modules.dispatch.routes import router as dispatch_router
 
 # Phase 2 Addition: Import Communities Router
 from app.modules.communities.routes import router as communities_router
+from app.modules.audit.routes import router as audit_router
 
 api_router = APIRouter()
 
@@ -32,3 +33,4 @@ api_router.include_router(dispatch_router)
 
 # Phase 2 Addition: Include Communities Router
 api_router.include_router(communities_router)
+api_router.include_router(audit_router)

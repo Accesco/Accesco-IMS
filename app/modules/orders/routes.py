@@ -38,4 +38,4 @@ async def cancel_order(
     _current_user: User = Depends(get_current_user)
 ):
     service = OrderService(db)
-    return await service.cancel_order(order_id)
+    return await service.cancel_order(order_id, user_id=_current_user.id)

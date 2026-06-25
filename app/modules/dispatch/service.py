@@ -15,6 +15,7 @@ from app.core.geo_utils import (
     calculate_rae_score
 )
 from app.modules.dispatch import repository
+from app.modules.audit.service import AuditLogService
 
 # Global imports (Safe because service files do not cause circular dependency loops)
 from app.models.rider import Rider
@@ -64,6 +65,15 @@ async def update_rider_state(db: AsyncSession, rider: Rider, target_state: str, 
         }
     )
     await db.flush()
+
+    await AuditLogService(db).log_action(
+        module="Dispatch",
+        action="UPDATE_RIDER_STATE",
+        user_id=rider.id,
+        entity_id=str(rider.id),
+        old_values={"status": old_state},
+        new_values={"status": target_state, "trigger": trigger}
+    )
 
 
 async def evaluate_rider_eligibility_and_scores(

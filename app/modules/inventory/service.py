@@ -10,6 +10,7 @@ from app.core.events import create_outbox_event
 from app.models.inventory import InventoryItem, InventoryReservation
 from app.modules.inventory.repository import InventoryRepository
 from app.modules.inventory.schemas import InventoryItemCreate, InventoryReservationCreate
+from app.modules.audit.service import AuditLogService
 
 class InventoryService:
     def __init__(self, db: AsyncSession):
@@ -21,12 +22,14 @@ class InventoryService:
     async def get_items_by_store(self, store_id: int) -> List[InventoryItem]:
         return await self.repo.get_items_by_store(store_id)
 
-    async def add_stock(self, store_id: int, product_id: int, quantity: int, reorder_level: int = 10) -> InventoryItem:
+    async def add_stock(self, store_id: int, product_id: int, quantity: int, reorder_level: int = 10, user_id: Optional[int] = None) -> InventoryItem:
         """
         Manually adds stock to a store's product inventory.
         Emits inventory.updated and checks if stock is low.
         """
         item = await self.repo.get_item_by_store_and_product_with_lock(store_id, product_id)
+        
+        old_qty = item.available_quantity if item else 0
         
         if not item:
             item_data = InventoryItemCreate(
@@ -40,6 +43,15 @@ class InventoryService:
         else:
             item.available_quantity += quantity
             await self.repo.db.flush()
+
+        await AuditLogService(self.repo.db).log_action(
+            module="Inventory",
+            action="ADD_STOCK",
+            user_id=user_id,
+            entity_id=str(item.id),
+            old_values={"available_quantity": old_qty},
+            new_values={"available_quantity": item.available_quantity}
+        )
 
         # Emit outbox event
         await create_outbox_event(
@@ -74,7 +86,7 @@ class InventoryService:
              
         return refreshed_item
 
-    async def reserve_stock(self, reservation_data: InventoryReservationCreate) -> InventoryReservation:
+    async def reserve_stock(self, reservation_data: InventoryReservationCreate, user_id: Optional[int] = None) -> InventoryReservation:
         """
         Reserves inventory items. Implements negative stock prevention and row-level locking.
         Reserving: available_quantity goes down, reserved_quantity goes up.
@@ -103,6 +115,14 @@ class InventoryService:
             quantity=quantity,
             expires_at=expires_at,
             order_id=reservation_data.order_id
+        )
+
+        await AuditLogService(self.repo.db).log_action(
+            module="Inventory",
+            action="RESERVE_STOCK",
+            user_id=user_id,
+            entity_id=str(res.id),
+            new_values={"quantity": quantity, "store_id": store_id, "product_id": product_id}
         )
 
         # Emit inventory.reserved outbox event
@@ -140,7 +160,7 @@ class InventoryService:
             
         return refreshed_res
 
-    async def confirm_reservation(self, reservation_id: int) -> InventoryReservation:
+    async def confirm_reservation(self, reservation_id: int, user_id: Optional[int] = None) -> InventoryReservation:
         res = await self.repo.get_reservation_by_id_with_lock(reservation_id)
         if not res:
             raise ResourceNotFoundException(f"Reservation {reservation_id} not found")
@@ -152,9 +172,19 @@ class InventoryService:
         if not item:
             raise ResourceNotFoundException(f"Inventory item not found for store {res.store_id} and product {res.product_id}")
 
+        old_status = res.status
         res.status = "COMPLETED"
         item.reserved_quantity = max(0, item.reserved_quantity - res.quantity)
         await self.repo.db.flush()
+
+        await AuditLogService(self.repo.db).log_action(
+            module="Inventory",
+            action="CONFIRM_RESERVATION",
+            user_id=user_id,
+            entity_id=str(res.id),
+            old_values={"status": old_status},
+            new_values={"status": res.status}
+        )
 
         await create_outbox_event(
             self.repo.db,
@@ -175,7 +205,7 @@ class InventoryService:
              
         return refreshed_res
 
-    async def release_reservation(self, reservation_id: int, status: str = "CANCELLED") -> InventoryReservation:
+    async def release_reservation(self, reservation_id: int, status: str = "CANCELLED", user_id: Optional[int] = None) -> InventoryReservation:
         res = await self.repo.get_reservation_by_id_with_lock(reservation_id)
         if not res:
             raise ResourceNotFoundException(f"Reservation {reservation_id} not found")
@@ -187,10 +217,20 @@ class InventoryService:
         if not item:
             raise ResourceNotFoundException(f"Inventory item not found for store {res.store_id} and product {res.product_id}")
 
+        old_status = res.status
         res.status = status
         item.available_quantity += res.quantity
         item.reserved_quantity = max(0, item.reserved_quantity - res.quantity)
         await self.repo.db.flush()
+
+        await AuditLogService(self.repo.db).log_action(
+            module="Inventory",
+            action="RELEASE_RESERVATION",
+            user_id=user_id,
+            entity_id=str(res.id),
+            old_values={"status": old_status},
+            new_values={"status": res.status}
+        )
 
         await create_outbox_event(
             self.repo.db,

@@ -11,6 +11,7 @@ from app.models.outbox import OutboxEvent
 from app.models.rider import Rider
 from app.models.community import Community
 from app.models.batch import Batch
+from app.models.audit import AuditLog
 
 __all__ = [
     "Base",
@@ -29,5 +30,6 @@ __all__ = [
     # Phase 2 Exports
     "Rider",
     "Community",
-    "Batch"
+    "Batch",
+    "AuditLog"
 ]
