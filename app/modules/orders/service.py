@@ -13,6 +13,7 @@ from app.models.store import Store
 from app.modules.orders.repository import OrderRepository
 from app.modules.orders.schemas import OrderCreate
 from app.core.geo_utils import haversine_distance, classify_zone_and_sla
+from app.modules.audit.service import AuditLogService
 
 
 class OrderService:
@@ -50,6 +51,16 @@ class OrderService:
 
         # 3. Create database entities with computed zone data [1]
         order = await self.repo.create_order(order_data, customer_id, delivery_zone, sla_deadline)
+        await self.repo.db.flush()
+
+        await AuditLogService(self.repo.db).log_action(
+            module="Orders",
+            action="PLACE_ORDER",
+            user_id=customer_id,
+            entity_id=str(order.id),
+            new_values={"total_amount": float(order.total_amount), "store_id": order.store_id}
+        )
+
         await self.repo.db.commit()
 
         # 4. Prepare Kafka outbox event
@@ -80,13 +91,27 @@ class OrderService:
         
         return order
 
-    async def cancel_order(self, order_id: int) -> Order:
+    async def cancel_order(self, order_id: int, user_id: int = None) -> Order:
         order = await self.get_order_by_id(order_id)
         if order.status in ["CANCELLED", "COMPLETED"]:
             raise IMSException(f"Order cannot be cancelled in state: {order.status}", 400)
             
+        old_status = order.status
+        old_payment = order.payment_status
+
         await self.repo.update_order_status(order, "CANCELLED")
         await self.repo.update_order_payment(order, "REFUNDED")
+        await self.repo.db.flush()
+
+        await AuditLogService(self.repo.db).log_action(
+            module="Orders",
+            action="CANCEL_ORDER",
+            user_id=user_id,
+            entity_id=str(order.id),
+            old_values={"status": old_status, "payment_status": old_payment},
+            new_values={"status": "CANCELLED", "payment_status": "REFUNDED"}
+        )
+
         await self.repo.db.commit()
 
         # Emit orders.cancelled event
@@ -101,9 +126,23 @@ class OrderService:
         
         return order
 
-    async def confirm_order_payment(self, order_id: int) -> Order:
+    async def confirm_order_payment(self, order_id: int, user_id: int = None) -> Order:
         order = await self.get_order_by_id(order_id)
+        old_status = order.status
+        old_payment = order.payment_status
+
         await self.repo.update_order_status(order, "CONFIRMED")
         await self.repo.update_order_payment(order, "COMPLETED")
+        await self.repo.db.flush()
+
+        await AuditLogService(self.repo.db).log_action(
+            module="Orders",
+            action="CONFIRM_PAYMENT",
+            user_id=user_id,
+            entity_id=str(order.id),
+            old_values={"status": old_status, "payment_status": old_payment},
+            new_values={"status": "CONFIRMED", "payment_status": "COMPLETED"}
+        )
+
         await self.repo.db.commit()
         return order

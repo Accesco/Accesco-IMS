@@ -49,7 +49,7 @@ async def add_stock(
     _current_user=Depends(admin_or_inv_manager)
 ):
     service = InventoryService(db)
-    return await service.add_stock(store_id, product_id, quantity, reorder_level)
+    return await service.add_stock(store_id, product_id, quantity, reorder_level, user_id=_current_user.id)
 
 
 @router.post("/reserve", response_model=InventoryReservationResponse, status_code=status.HTTP_201_CREATED)
@@ -59,7 +59,7 @@ async def reserve_stock(
     _current_user=Depends(all_authorized)
 ):
     service = InventoryService(db)
-    return await service.reserve_stock(reservation_data)
+    return await service.reserve_stock(reservation_data, user_id=_current_user.id)
 
 
 @router.post("/release/{reservation_id}", response_model=InventoryReservationResponse)
@@ -69,4 +69,4 @@ async def release_reservation(
     _current_user=Depends(admin_or_inv_manager)
 ):
     service = InventoryService(db)
-    return await service.release_reservation(reservation_id)
+    return await service.release_reservation(reservation_id, user_id=_current_user.id)

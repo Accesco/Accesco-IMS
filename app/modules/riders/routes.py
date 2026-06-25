@@ -30,7 +30,7 @@ async def create_rider(
     _current_user=Depends(admin_or_store_manager)
 ):
     service = RiderService(db)
-    return await service.create_rider(rider_data)
+    return await service.create_rider(rider_data, user_id=_current_user.id)
 
 
 @router.get("", response_model=List[RiderResponse])
@@ -60,7 +60,7 @@ async def update_rider(
     _current_user=Depends(admin_or_store_manager)
 ):
     service = RiderService(db)
-    return await service.update_rider(rider_id, rider_data)
+    return await service.update_rider(rider_id, rider_data, user_id=_current_user.id)
 
 
 @router.delete("/{rider_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -70,5 +70,5 @@ async def delete_rider(
     _current_user=Depends(admin_or_store_manager)
 ):
     service = RiderService(db)
-    await service.delete_rider(rider_id)
+    await service.delete_rider(rider_id, user_id=_current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
