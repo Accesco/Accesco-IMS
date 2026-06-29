@@ -232,7 +232,21 @@ pytest -v --asyncio-mode=strict
 
 ## Web UI Dashboard (API Tester)
 
-We have built a dedicated **API Tester Web UI** to make it easy to interact with the backend services. The dashboard is built with **React**, **Vite**, and **Tailwind CSS**.
+We have built a dedicated **API Tester Web UI** to make it easy to interact with the backend services directly from the browser (a lightweight Postman alternative). The dashboard is fully configured to read from all **12 backend modules** and their **49 endpoints**.
+
+### Features
+* **Full Backend Coverage**: Pre-configured with all endpoints (Auth, Stores, Products, Inventory, Cart, Orders, Payments, Procurement, Riders, Dispatch, Communities, Audit Logs).
+* **Smart Request Builder**: Includes Monaco Editor for JSON bodies, automatic path/query parameter inputs, and HTTP method badges.
+* **Authentication Management**: A global JWT token manager that automatically injects your `Authorization` headers into all requests.
+* **Environment Switching**: Easily toggle between Local (`127.0.0.1`), Development, and Staging servers.
+* **Developer Utilities**: One-click "Copy as cURL" generation, JSON auto-formatting, response time tracking, and detailed error parsing.
+
+### Tech Stack
+* **React 19** + **Vite**
+* **TypeScript**
+* **Tailwind CSS v4** (with CSS Variables for Dark/Light mode)
+* **Monaco Editor** (for syntax-highlighted JSON editing)
+* **Axios** (for API requests)
 
 ### Running the UI
 
@@ -249,4 +263,4 @@ npm install
 npm run dev
 ```
 
-The UI will typically be available at `http://localhost:5173`. You can configure the API endpoint environment in the Settings tab within the UI.
+The UI will be available at `http://localhost:5173`. By default, it connects to the local Python backend at `http://127.0.0.1:8000/api/v1`.
