@@ -28,7 +28,8 @@ app/
 │   ├── outbox_processor.py # Durability layer publishing DB events to Kafka
 │   └── reservation_sweeper.py # Sweeps and releases expired reservations
 ├── migrations/             # Alembic migration scripts
-└── scripts/                # Database seed scripts
+├── scripts/                # Database seed scripts
+└── UI/                     # React-based API Tester Frontend Dashboard
 ```
 
 ### Core Design Rules
@@ -226,3 +227,26 @@ Run tests:
 ```bash
 pytest -v --asyncio-mode=strict
 ```
+
+---
+
+## Web UI Dashboard (API Tester)
+
+We have built a dedicated **API Tester Web UI** to make it easy to interact with the backend services. The dashboard is built with **React**, **Vite**, and **Tailwind CSS**.
+
+### Running the UI
+
+You can start the frontend development server using Node.js:
+
+```bash
+# 1. Navigate to the UI directory
+cd UI
+
+# 2. Install dependencies
+npm install
+
+# 3. Start the development server
+npm run dev
+```
+
+The UI will typically be available at `http://localhost:5173`. You can configure the API endpoint environment in the Settings tab within the UI.
