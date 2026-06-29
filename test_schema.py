@@ -9,4 +9,5 @@ async def test():
         for col in columns:
             print(col)
 
-asyncio.run(test())
+if __name__ == "__main__":
+    asyncio.run(test())
