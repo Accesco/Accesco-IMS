@@ -59,3 +59,13 @@ def setup_exception_handlers(app: FastAPI) -> None:
             status_code=exc.status_code,
             content={"detail": exc.message}
         )
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        import traceback
+        with open(r"c:\Users\jxtro\Desktop\WORK\Accesco-IMS\error.log", "w") as f:
+            traceback.print_exc(file=f)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal Server Error"}
+        )

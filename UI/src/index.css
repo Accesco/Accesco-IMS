@@ -1,0 +1,97 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@import "tailwindcss";
+
+/* ── Theme Colors (CSS Custom Properties) ──────────────── */
+:root {
+  --surface-primary: #ffffff;
+  --surface-secondary: #f9fafb;
+  --surface-tertiary: #f3f4f6;
+  --surface-elevated: #ffffff;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+  --text-faint: #9ca3af;
+  --border-default: #e5e7eb;
+  --input-bg: #f3f4f6;
+}
+
+.dark {
+  --surface-primary: #09090b;
+  --surface-secondary: #0c0c0f;
+  --surface-tertiary: #18181b;
+  --surface-elevated: #1c1c21;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --text-faint: #52525b;
+  --border-default: #27272a;
+  --input-bg: #111114;
+}
+
+/* ── Register as Tailwind theme colors ─────────────────── */
+@theme {
+  --color-surface: var(--surface-primary);
+  --color-surface-alt: var(--surface-secondary);
+  --color-surface-raised: var(--surface-tertiary);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-txt: var(--text-primary);
+  --color-txt-sec: var(--text-secondary);
+  --color-txt-muted: var(--text-muted);
+  --color-txt-faint: var(--text-faint);
+  --color-edge: var(--border-default);
+  --color-field: var(--input-bg);
+}
+
+/* ── Base ──────────────────────────────────────────────── */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 120%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--surface-primary);
+    color: var(--text-primary);
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--text-faint);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+  }
+
+  ::selection {
+    background-color: rgba(99, 102, 241, 0.3);
+    color: var(--text-primary);
+  }
+
+  :focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+  }
+}
