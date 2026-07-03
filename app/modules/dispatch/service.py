@@ -23,7 +23,6 @@ from app.models.batch import Batch
 from app.models.community import Community
 from app.models.store import Store
 
-# Setup debug logs (Section 11) [14.1]
 logger = logging.getLogger("dispatch_engine")
 logger.setLevel(logging.INFO)
 
@@ -72,12 +71,8 @@ async def evaluate_rider_eligibility_and_scores(
     store: Store, 
     is_batch: bool
 ) -> List[Tuple[Rider, float]]:
-    """
-    Evaluates and logs explicit rider eligibility checks and RAE scores (Section 03).
-    """
     now = datetime.now(timezone.utc)
     
-    # Query all active, online riders [10.1]
     result = await db.execute(
         select(Rider).where(Rider.status.in_(["IDLE", "BATCHING", "RETURNING"]))
     )
@@ -86,36 +81,30 @@ async def evaluate_rider_eligibility_and_scores(
     eligible_scored_candidates = []
     
     for rider in all_active_riders:
-        # Check basic availability [4.1]
         if not rider.is_available:
             logger.warning(f"Rejected rider {rider.id}: reason=RIDER_NOT_AVAILABLE")
             continue
             
-        # Check battery level constraint (Section 03) [4.1]
         if rider.battery_level < 15.0:
             logger.warning(f"Rejected rider {rider.id}: reason=BATTERY_LOW_VAL ({rider.battery_level}%)")
             continue
             
-        # Check shift status expiration (Section 03) [4.1]
         shift_end = rider.shift_end_time.replace(tzinfo=timezone.utc) if rider.shift_end_time.tzinfo is None else rider.shift_end_time
         if shift_end <= now:
             logger.warning(f"Rejected rider {rider.id}: reason=SHIFT_EXPIRED (ended at {shift_end.isoformat()})")
             continue
             
-        # Check heartbeat age (Section 11) [14.1]
         heartbeat_time = rider.last_heartbeat_at.replace(tzinfo=timezone.utc) if rider.last_heartbeat_at.tzinfo is None else rider.last_heartbeat_at
         heartbeat_age_sec = (now - heartbeat_time).total_seconds()
         if heartbeat_age_sec > 30.0:
             logger.warning(f"Rejected rider {rider.id}: reason=HEARTBEAT_LOST (last updated {heartbeat_age_sec}s ago)")
             continue
             
-        # Check load constraints (Section 03) [4.1]
         load = await repository.get_rider_active_load_count(db, rider.id)
         if load >= 3:
             logger.warning(f"Rejected rider {rider.id}: reason=MAX_LOAD_REACHED (carrying {load} orders)")
             continue
             
-        # Calculate RAE score (Section 03) [4.1]
         score = calculate_rae_score(rider, order, store, load, is_batch_compatible=is_batch)
         
         logger.info(
@@ -127,7 +116,6 @@ async def evaluate_rider_eligibility_and_scores(
             f"score={score}"
         )
         
-        # Check minimum score threshold (Section 03) [4.1]
         if score < 0.55:
             logger.warning(f"Rejected rider {rider.id}: reason=RAE_SCORE_BELOW_THRESHOLD (score {score} < 0.55)")
             continue
@@ -138,31 +126,27 @@ async def evaluate_rider_eligibility_and_scores(
 
 
 async def ingest_new_order(db: AsyncSession, order_id: int) -> Dict[str, Any]:
+    """
+    Ingests placed orders into the dispatch geofencing and batching pipelines [1].
+    Consolidates SLA/Zone logic by reading pre-calculated fields directly from the Order [1].
+    """
     order = await repository.get_order_for_update(db, order_id)
     if not order:
         raise ResourceNotFoundException("Order not found")
 
-    store = await repository.get_store_by_id(db, order.store_id)
-    if not store:
-        raise IMSException("Origin Dark Store not found", 404)
-
-    # Classify Zone SLA (Section 04)
-    dist_km = haversine_distance(store.latitude, store.longitude, order.latitude, order.longitude)
-    zone_name, sla_minutes = classify_zone_and_sla(dist_km)
-    
-    order.delivery_zone = zone_name
-    order.sla_deadline = datetime.now(timezone.utc) + timedelta(minutes=sla_minutes)
-    await db.commit()
-
-    # Zone D is not eligible for batching [6.1, 6.2]
-    if zone_name == "ZONE_D":
+    # 1. Evaluate pre-calculated zone status [1]
+    # Zone D is strictly barred from batching [6.1, 6.2]
+    if order.delivery_zone == "ZONE_D":
+        store = await repository.get_store_by_id(db, order.store_id)
+        if not store:
+            raise IMSException("Origin Dark Store not found", 404)
         return await find_and_offer_solo_rider(db, order, store, is_batch=False)
 
-    # Community Polygon Resolution (Section 05)
+    # 2. Community Geofence Check (Section 05) [7.1]
     community = await repository.resolve_location_to_community(db, order.latitude, order.longitude)
     if community:
         order.community_id = community.id
-        await db.commit()
+        await db.flush()
         
         batch_window_sec = await get_dynamic_batch_window(db, community.id)
         batch = await repository.get_active_batch_for_community(db, community.id)
@@ -172,14 +156,17 @@ async def ingest_new_order(db: AsyncSession, order_id: int) -> Dict[str, Any]:
             batch = await repository.create_batch(db, community.id, dispatch_time)
             
         order.batch_id = batch.id
-        await db.commit()
+        await db.flush()
         
-        # Freshly retrieve the batch with all its associated orders eagerly loaded [1]
+        # 3. Eagerly reload batch orders to verify size limits [1]
         batch_hydrated = await repository.get_batch_by_id_with_orders(db, batch.id)
         if not batch_hydrated:
             raise ResourceNotFoundException("Batch not found after assignment")
             
         if len(batch_hydrated.orders) >= community.max_batch_size:
+            store = await repository.get_store_by_id(db, order.store_id)
+            if not store:
+                raise IMSException("Origin Dark Store not found", 404)
             return await trigger_batch_assignment(db, batch_hydrated, store, community)
             
         return {
@@ -188,26 +175,27 @@ async def ingest_new_order(db: AsyncSession, order_id: int) -> Dict[str, Any]:
             "message": f"Buffered in draft batch {batch_hydrated.id} (dynamic window: {batch_window_sec}s)"
         }
 
+    # 4. Fallback if no geofenced communities match
+    store = await repository.get_store_by_id(db, order.store_id)
+    if not store:
+        raise IMSException("Origin Dark Store not found", 404)
     return await find_and_offer_solo_rider(db, order, store, is_batch=False)
 
 
 async def find_and_offer_solo_rider(db: AsyncSession, order: Order, store: Store, is_batch: bool) -> Dict[str, Any]:
-    # Evaluate candidates with detailed logging checks
     candidates = await evaluate_rider_eligibility_and_scores(db, order, store, is_batch)
     
     if not candidates:
         order.assignment_status = "QUEUED"
-        await db.commit()
+        await db.flush()
         return {"order_id": order.id, "status": "NO_RIDER_AVAILABLE", "message": "Queueing order (no rider passed eligibility or RAE threshold)"}
 
-    # Select the highest-scoring eligible candidate (Section 03) [4.1]
     best_rider, best_score = max(candidates, key=lambda c: c[1])
 
-    # Lock order offer and start 45-second timer
     order.offered_rider_id = best_rider.id
     order.assignment_offered_at = datetime.now(timezone.utc)
     order.assignment_status = "OFFERED"
-    await db.commit()
+    await db.flush()
 
     return {
         "order_id": order.id,
@@ -226,7 +214,7 @@ async def trigger_batch_assignment(db: AsyncSession, batch: Batch, store: Store,
 
     if not candidates:
         batch.dispatch_by = datetime.now(timezone.utc) + timedelta(seconds=30)
-        await db.commit()
+        await db.flush()
         return {"batch_id": batch.id, "status": "QUEUED_NO_RIDER"}
 
     best_rider, best_score = max(candidates, key=lambda c: c[1])
@@ -234,7 +222,7 @@ async def trigger_batch_assignment(db: AsyncSession, batch: Batch, store: Store,
     batch.offered_rider_id = best_rider.id
     batch.assignment_offered_at = datetime.now(timezone.utc)
     batch.status = "OFFERED"
-    await db.commit()
+    await db.flush()
 
     return {
         "batch_id": batch.id,

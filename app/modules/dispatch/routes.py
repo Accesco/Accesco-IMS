@@ -1,16 +1,20 @@
-# app/modules/dispatch/routes.py
+
 from __future__ import annotations
 
 from typing import Optional, List
 from fastapi import APIRouter, Depends, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.database import get_db, get_redis_client
+from app.modules.auth.routes import RoleChecker
 from app.modules.dispatch import service
 from app.modules.dispatch.schemas import DispatchResponse
+from app.modules.dispatch.optimizer_service import GlobalDispatchOptimizer
 from app.models.rider import Rider
 
 router = APIRouter(prefix="/dispatch", tags=["Dispatch Engine"])
+
+admin_or_manager = RoleChecker(["Admin", "StoreManager"])
 
 
 @router.post("/assign/{order_id}", response_model=DispatchResponse)
@@ -46,13 +50,18 @@ async def process_heartbeat(
     return {"status": "HEARTBEAT_RECORDED"}
 
 
+
 @router.post("/rider/transition")
 async def force_transition_state(
     rider_id: int = Body(...),
     target_state: str = Body(...),
     db: AsyncSession = Depends(get_db)
 ):
+    from app.core.exceptions import ResourceNotFoundException
     rider = await db.get(Rider, rider_id)
+    if not rider:
+        raise ResourceNotFoundException("Rider not found")
+        
     await service.update_rider_state(db, rider, target_state, trigger="API_MANUAL_TRANSITION")
     await db.commit()
     return {"status": "TRANSITION_SUCCESSFUL", "current_state": rider.status}
@@ -60,18 +69,30 @@ async def force_transition_state(
 
 @router.get("/batches")
 async def list_active_batches(db: AsyncSession = Depends(get_db)):
-    """Retrieve all active batches currently in the dispatch engine."""
     return await service.get_all_active_batches(db)
 
 
 @router.get("/batches/{batch_id}")
 async def get_batch_details(batch_id: int, db: AsyncSession = Depends(get_db)):
-    """Retrieve detailed orders inside a specific batch."""
     return await service.get_batch_details(db, batch_id)
+
+# PHASE 3: SECURED OPTIMIZATION ENDPOINT
+
+@router.post("/optimize")
+async def trigger_global_optimization(
+    db: AsyncSession = Depends(get_db),
+    redis = Depends(get_redis_client),
+    _current_user = Depends(admin_or_manager) 
+):
+    optimizer = GlobalDispatchOptimizer(db, redis)
+    assignments_made = await optimizer.execute_global_optimization_sweep()
+    return {
+        "status": "OPTIMIZATION_SWEEP_EXECUTED",
+        "assignments_committed": assignments_made
+    }
 
 
 @router.post("/sweep")
 async def trigger_manual_sweep(db: AsyncSession = Depends(get_db)):
-    """Manually trigger the background sweep cycle for testing timeouts/SLA [14.1]."""
     await service.execute_manual_sweep(db)
     return {"status": "SWEEP_CYCLE_EXECUTED"}

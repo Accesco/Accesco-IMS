@@ -68,19 +68,36 @@ async def resolve_location_to_community(db: AsyncSession, lat: float, lon: float
 
 
 async def get_active_batch_for_community(db: AsyncSession, community_id: str) -> Optional[Batch]:
-    now = datetime.now(timezone.utc)
+    """
+    Retrieves the active draft batch for a community, evaluating 
+    expiration times in a timezone-safe manner [1].
+    """
+    # 1. Query active draft batches for this community
     result = await db.execute(
         select(Batch)
-        .options(selectinload(Batch.orders))
+        .options(selectinload(Batch.orders)) # Eagerly load relationship to prevent MissingGreenlet [1]
         .where(
             and_(
                 Batch.community_id == community_id,
-                Batch.status == "DRAFT",
-                Batch.dispatch_by > now
+                Batch.status == "DRAFT"
             )
         )
     )
-    return result.scalar_one_or_none()
+    active_batches = result.scalars().all()
+    
+    # 2. Perform timezone-safe expiration check in Python [1]
+    now = datetime.now(timezone.utc)
+    
+    for batch in active_batches:
+        # Normalize batch.dispatch_by to timezone-aware UTC for safe comparison [1]
+        dispatch_by = batch.dispatch_by
+        if dispatch_by.tzinfo is None:
+            dispatch_by = dispatch_by.replace(tzinfo=timezone.utc)
+            
+        if dispatch_by > now:
+            return batch
+            
+    return None
 
 
 async def create_batch(db: AsyncSession, community_id: str, dispatch_by: datetime) -> Batch:

@@ -48,11 +48,23 @@ class OrderService:
         delivery_zone, sla_minutes = classify_zone_and_sla(dist_km)
         sla_deadline = datetime.now(timezone.utc) + timedelta(minutes=sla_minutes)
 
-        # 3. Create database entities with computed zone data [1]
+        # 3. Create database entities (use flush, do not commit yet!) [1]
         order = await self.repo.create_order(order_data, customer_id, delivery_zone, sla_deadline)
-        await self.repo.db.commit()
+        
+        try:
+            # 4. Integrate into the Phase 3 Dispatch Pipeline synchronously [1]
+            # Imported locally to prevent circular imports during startup [1.1.6]
+            from app.modules.dispatch.service import ingest_new_order
+            await ingest_new_order(self.repo.db, order.id)
+            
+            # 5. Commit the entire transaction atomically [1]
+            await self.repo.db.commit()
+        except Exception as error:
+            # Rollback transaction on any pipeline failures to guarantee database consistency [1]
+            await self.repo.db.rollback()
+            raise error
 
-        # 4. Prepare Kafka outbox event
+        # 6. Prepare Kafka outbox event
         items_payload = [
             {
                 "product_id": item.product_id,
@@ -78,6 +90,8 @@ class OrderService:
             }
         )
         
+        # Commit the outbox event registration safely
+        await self.repo.db.commit()
         return order
 
     async def cancel_order(self, order_id: int) -> Order:
@@ -98,7 +112,7 @@ class OrderService:
                 "customer_id": order.customer_id
             }
         )
-        
+        await self.repo.db.commit()
         return order
 
     async def confirm_order_payment(self, order_id: int) -> Order:
