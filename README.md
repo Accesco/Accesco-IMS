@@ -1,266 +1,186 @@
-# Accesco Living - Dark Store Inventory Management System (IMS)
+# Predictive Replenishment Engine — Inference API
+**Accesco Living | Author: Jai Jain (ML Intern) | Version: 0.3.0**
 
-Accesco Living IMS is a high-performance, modular monolith backend service for dark store inventory management. It manages store inventory levels, customer orders, stock reservations, background procurement, and payment webhooks.
-
-## Architecture Overview
-
-Accesco Living IMS follows a **Modular Monolith** architecture with strict separation between API, Service, Repository, and Infrastructure layers.
-
-```
-app/
-├── main.py                 # Application Entrypoint & Startup Lifecycles
-├── api/
-│   └── v1/                 # API Router Aggregation
-├── core/                   # Core modules (config, security, database, redis, kafka, events, exceptions)
-├── models/                 # Shared SQLAlchemy Database Models
-├── schemas/                # Shared Schemas (if any, module schemas are inside their folders)
-├── modules/                # Business Domain Modules
-│   ├── auth/               # User registration, Login, and RBAC
-│   ├── stores/             # Dark store CRUD
-│   ├── products/           # Product Catalog
-│   ├── inventory/          # Row-locking Stock Reservations & Updates
-│   ├── cart/               # Redis-based shopping carts
-│   ├── orders/             # Order placement & cancellations
-│   ├── payments/           # Razorpay Checkout & Webhook handler
-│   └── procurement/        # Purchase orders and automatic reordering
-├── workers/                # Background process consumers
-│   ├── kafka_consumer.py   # Processes async events from Kafka topics
-│   ├── outbox_processor.py # Durability layer publishing DB events to Kafka
-│   └── reservation_sweeper.py # Sweeps and releases expired reservations
-├── migrations/             # Alembic migration scripts
-├── scripts/                # Database seed scripts
-└── UI/                     # React-based API Tester Frontend Dashboard
-```
-
-### Core Design Rules
-* **PostgreSQL** is the primary source of truth.
-* **Redis** is used for caching, shopping carts, and temporary inventory states.
-* **Apache Kafka** handles event-driven communications.
-* **Transactional Outbox Pattern** ensures database updates and corresponding Kafka messages are committed atomically.
-* **Row-Level Locking** (`SELECT ... FOR UPDATE`) is enforced during reservations to prevent negative stock conditions under high concurrency.
-* **Dependency Injection** is used via FastAPI's `Depends` mechanisms. All database accesses occur strictly within Repository classes.
+REST API exposing the XGBoost replenishment classifier for consumption by the IMS.
 
 ---
 
-## Tech Stack
+## Folder Structure
 
-* **Language**: Python 3.12
-* **Framework**: FastAPI
-* **Server**: Uvicorn
-* **Database**: PostgreSQL 16 (via SQLAlchemy 2.0 Async + asyncpg)
-* **Migrations**: Alembic
-* **Caching/Temporary State**: Redis (async redis-py)
-* **Messaging**: Apache Kafka (aiokafka)
-* **Auth**: JWT (python-jose + passlib with bcrypt)
-* **Payments**: Razorpay Integration
-* **Containerization**: Docker Compose
+```
+replenishment-api/
+├── main.py                          # FastAPI app entrypoint, route definitions
+├── inference.py                     # Model loading and prediction logic
+├── schemas.py                       # Pydantic request/response schemas
+├── predictive_replenishment_model.pkl  # Model artifact (place here before running)
+├── requirements.txt                 # Python dependencies
+├── README.md                        # This file
+└── tests/
+    ├── test_api.py                  # End-to-end API tests (via TestClient)
+    └── test_inference.py            # Unit tests for inference service in isolation
+```
 
 ---
 
-## Kafka Event Flows
+## Setup & Running
 
-| Topic | Emitted By | Triggered By | Consumed By | Worker Logic |
-| :--- | :--- | :--- | :--- | :--- |
-| `orders.placed` | Orders Module | Order Placement | - | Dashboard/Metrics logging |
-| `payments.confirmed` | Payments Module | Razorpay webhook validation | Kafka Consumer | Confirms order, checks inventory, reserves stock (row-level locking), and emits `inventory.reserved` |
-| `inventory.reserved` | Inventory Module | Reservation creation | - | Auditing/Fulfillment |
-| `inventory.updated` | Inventory/Procurement | Manual stock addition / PO reception | - | Stock reconciliation |
-| `inventory.low` | Inventory Module | Available stock <= reorder level | Kafka Consumer | Automatically generates draft Purchase Order and emits `procurement.created` |
-| `inventory.released` | Inventory Module | Reservation cancel/expiry | - | Stock restore logging |
-| `procurement.created` | Procurement Module | PO generation | - | Supplier alerting |
-| `orders.cancelled` | Orders Module | Order cancellation | Kafka Consumer | Identifies reservations for order, releases locks, restores available stock, and emits `inventory.released` |
-
----
-
-## 🐳 Quick Start with Docker
-
-> **Run the entire backend stack with a single command.** No Python, PostgreSQL, or Kafka installation required — only Docker.
-
-### Prerequisites
-* [Docker](https://docs.docker.com/get-docker/) & Docker Compose v2+
-
-### 1. Clone & Configure
+### 1. Install dependencies
 ```bash
-git clone https://github.com/Accesco/Accesco-IMS.git
-cd Accesco-IMS
-cp .env.example .env
-```
-
-### 2. Start Everything
-```bash
-docker compose up --build
-```
-This builds the FastAPI backend image and starts **all services**:
-
-| Service | URL / Port | Notes |
-|---|---|---|
-| **FastAPI Backend** | `http://localhost:8000` | Swagger UI at `/docs` |
-| **PostgreSQL** | `localhost:5432` | User: `postgres` / Pass: `postgres` |
-| **Redis** | `localhost:6379` | — |
-| **Kafka** | `localhost:9092` | Internal: `kafka:29092` |
-| **Zookeeper** | `localhost:2181` | Required by Kafka |
-| **PgAdmin** | `http://localhost:5050` | Login: `admin@accesco.com` / `admin` |
-
-The backend container automatically:
-- ✅ Waits for PostgreSQL to be ready
-- ✅ Runs Alembic database migrations
-- ✅ Seeds the database (on first run, controlled by `RUN_SEED=true`)
-- ✅ Starts uvicorn with live reload
-
-### 3. Verify
-```bash
-curl http://localhost:8000/health       # App health
-curl http://localhost:8000/health/db    # Database connectivity
-curl http://localhost:8000/health/redis # Redis connectivity
-curl http://localhost:8000/health/kafka # Kafka connectivity
-```
-
-### Docker Commands Reference
-
-| Command | Description |
-|---|---|
-| `docker compose up --build` | Build & start all services |
-| `docker compose up -d` | Start in detached (background) mode |
-| `docker compose down` | Stop all services |
-| `docker compose down -v` | Stop & **remove volumes** (resets database) |
-| `docker compose logs -f backend` | Tail backend logs |
-| `docker compose restart backend` | Restart only the backend |
-
-*Default Seeded Credentials:*
-* **Admin Username**: `admin`
-* **Admin Password**: `adminpassword`
-
----
-
-## Local Setup Instructions (Without Docker)
-
-> For developers who prefer running Python directly on their host machine.
-
-### Prerequisites
-* Python 3.12+
-* Docker & Docker Compose (for infrastructure services)
-* Make (optional, but convenient)
-
-### 1. Clone & Configure Environment
-Create a copy of `.env.example` as `.env` and adjust the variables if needed:
-```bash
-cp .env.example .env
-```
-
-### 2. Launch Infrastructure Services
-Start only the infrastructure services (database, cache, messaging) in the background:
-```bash
-docker compose up -d postgres redis zookeeper kafka pgadmin
-```
-This spins up:
-* **PostgreSQL** on port `5432`
-* **Redis** on port `6379`
-* **Zookeeper & Apache Kafka** on port `9092`
-* **PgAdmin** on port `5050` (Login: `admin@accesco.com` / `admin`)
-
-### 3. Install Python Dependencies
-Create a virtual environment and install dependencies:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 4. Database Migrations & Seeding
-Initialize the database tables and apply initial seed data (roles, stores, products, inventory, admin user):
+### 2. Place the model artifact
 ```bash
-# Run migrations
-alembic upgrade head
-
-# Seed the database
-python -m app.scripts.seed
-```
-*Default Seeded Credentials:*
-* **Admin Username**: `admin`
-* **Admin Password**: `adminpassword`
-
----
-
-## Running the Application
-
-### Using Makefile
-If you have `make` installed:
-```bash
-# Start the FastAPI Web Server (live-reload enabled)
-make dev
-
-# Run test suites
-make test
-
-# Code quality checks
-make lint
+# Copy the pkl file into this folder
+cp path/to/predictive_replenishment_model.pkl .
 ```
 
-### Running Manually
+### 3. Start the server
 ```bash
-# Web Application
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Kafka Consumer Worker
-python -m app.workers.kafka_consumer
-
-# Outbox Processor Worker
-python -m app.workers.outbox_processor
-
-# Reservation Expiry Sweeper
-python -m app.workers.reservation_sweeper
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The Interactive API documentation is available at `http://localhost:8000/docs` (Swagger UI).
+The interactive API docs (Swagger UI) are available at:
+`http://localhost:8000/docs`
 
----
-
-## Testing
-
-Tests are written using `pytest` and `pytest-asyncio`. A clean in-memory SQLite database is generated for each test run to ensure isolated execution of:
-* User registration, logins, and JWT validation
-* Negative stock prevention & concurrency locking logic
-* Order placement and outbox record validation
-* Kafka consumer handlers (`payments.confirmed`, `inventory.low`, `orders.cancelled`)
-
-Run tests:
+### 4. Custom model path (optional)
 ```bash
-pytest -v --asyncio-mode=strict
+MODEL_PATH=/path/to/model.pkl uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 ---
 
-## Web UI Dashboard (API Tester)
+## API Reference
 
-We have built a dedicated **API Tester Web UI** to make it easy to interact with the backend services directly from the browser (a lightweight Postman alternative). The dashboard is fully configured to read from all **12 backend modules** and their **49 endpoints**.
+### `GET /health`
 
-### Features
-* **Full Backend Coverage**: Pre-configured with all endpoints (Auth, Stores, Products, Inventory, Cart, Orders, Payments, Procurement, Riders, Dispatch, Communities, Audit Logs).
-* **Smart Request Builder**: Includes Monaco Editor for JSON bodies, automatic path/query parameter inputs, and HTTP method badges.
-* **Authentication Management**: A global JWT token manager that automatically injects your `Authorization` headers into all requests.
-* **Environment Switching**: Easily toggle between Local (`127.0.0.1`), Development, and Staging servers.
-* **Developer Utilities**: One-click "Copy as cURL" generation, JSON auto-formatting, response time tracking, and detailed error parsing.
+Returns service status and the model's loaded feature schema.
 
-### Tech Stack
-* **React 19** + **Vite**
-* **TypeScript**
-* **Tailwind CSS v4** (with CSS Variables for Dark/Light mode)
-* **Monaco Editor** (for syntax-highlighted JSON editing)
-* **Axios** (for API requests)
-
-### Running the UI
-
-You can start the frontend development server using Node.js:
-
-```bash
-# 1. Navigate to the UI directory
-cd UI
-
-# 2. Install dependencies
-npm install
-
-# 3. Start the development server
-npm run dev
+**Response:**
+```json
+{
+  "status": "ok",
+  "model_features": [
+    "On_Hand", "Reserved", "Daily_Velocity",
+    "Dark_Store_ID_DS-BLR-01", "Dark_Store_ID_DS-BLR-02", "Dark_Store_ID_DS-BLR-03",
+    "Temp_Zone_Ambient", "Temp_Zone_Chilled", "Temp_Zone_Frozen"
+  ]
+}
 ```
 
-The UI will be available at `http://localhost:5173`. By default, it connects to the local Python backend at `http://127.0.0.1:8000/api/v1`.
+---
+
+### `POST /predict-replenishment`
+
+Accepts SKU-level inventory telemetry and returns an urgent reorder prediction.
+
+**Request schema:**
+
+| Field            | Type    | Required | Constraints                                      | Description                          |
+|------------------|---------|----------|--------------------------------------------------|--------------------------------------|
+| `sku_id`         | string  | ✅       | —                                                | SKU identifier                       |
+| `store_id`       | string  | ✅       | One of: DS-BLR-01, DS-BLR-02, DS-BLR-03         | Dark store location                  |
+| `on_hand`        | integer | ✅       | >= 0                                             | Total physical units in store        |
+| `reserved`       | integer | ✅       | >= 0                                             | Units held for pending orders        |
+| `daily_velocity` | float   | ✅       | > 0                                              | Average units sold per day           |
+| `temp_zone`      | string  | ✅       | One of: Ambient, Chilled, Frozen                 | Storage temperature zone             |
+
+> **Note:** `available` and `reorder_level` are intentionally absent.
+> Both are direct arithmetic derivations of the target label — including them causes data leakage.
+
+**Sample request — low stock (Tata Tea Premium at DS-BLR-01):**
+```json
+{
+  "sku_id": "ACS-45566",
+  "store_id": "DS-BLR-01",
+  "on_hand": 1,
+  "reserved": 0,
+  "daily_velocity": 10.0,
+  "temp_zone": "Ambient"
+}
+```
+
+**Sample response — urgent reorder:**
+```json
+{
+  "sku_id": "ACS-45566",
+  "store_id": "DS-BLR-01",
+  "urgent_reorder": true,
+  "confidence_score": 0.9928,
+  "action": "GENERATE_PURCHASE_ORDER"
+}
+```
+
+---
+
+**Sample request — healthy stock (Parle-G Biscuits at DS-BLR-01):**
+```json
+{
+  "sku_id": "ACS-99682",
+  "store_id": "DS-BLR-01",
+  "on_hand": 117,
+  "reserved": 11,
+  "daily_velocity": 14.32,
+  "temp_zone": "Ambient"
+}
+```
+
+**Sample response — no action:**
+```json
+{
+  "sku_id": "ACS-99682",
+  "store_id": "DS-BLR-01",
+  "urgent_reorder": false,
+  "confidence_score": 0.0312,
+  "action": "NO_ACTION_REQUIRED"
+}
+```
+
+---
+
+**Validation error (422):**
+```json
+{
+  "detail": [
+    {
+      "type": "literal_error",
+      "loc": ["body", "store_id"],
+      "msg": "Input should be 'DS-BLR-01', 'DS-BLR-02' or 'DS-BLR-03'",
+      "input": "DS-MUM-99"
+    }
+  ]
+}
+```
+
+---
+
+## Running Tests
+
+```bash
+# From the replenishment-api/ directory
+pytest tests/ -v
+```
+
+Expected output:
+```
+tests/test_api.py::test_health_check                          PASSED
+tests/test_api.py::test_low_stock_returns_urgent_reorder      PASSED
+tests/test_api.py::test_healthy_stock_returns_no_action       PASSED
+tests/test_api.py::test_response_contains_all_required_fields PASSED
+...
+tests/test_inference.py::test_feature_row_has_correct_column_count  PASSED
+tests/test_inference.py::test_store_id_one_hot_encoding_ds_blr_01   PASSED
+...
+```
+
+---
+
+## Design Notes
+
+**Model loaded once at startup** — via FastAPI's `lifespan` context manager, the `.pkl` artifact is loaded into memory when the server starts, not on each request. This follows the same pattern as the existing IMS workers.
+
+**Schema-tolerant inference** — feature rows are built with `reindex()` against the model's stored feature list, so payload evolution doesn't cause `ValueError` mismatches.
+
+**Clean string API** — callers pass `store_id: "DS-BLR-01"` and `temp_zone: "Ambient"` as plain strings. One-hot encoding happens internally in `inference.py`, invisible to the IMS consumer.
+
+**No leaky features** — `available` and `reorder_level` are not accepted as inputs. The model was trained without them to prevent data leakage.
