@@ -1,5 +1,5 @@
 # Predictive Replenishment Engine — Inference API
-**Accesco Living | Author: Jai Jain (ML Intern) | Version: 0.3.0**
+**Accesco Living | Version: 0.3.0**
 
 REST API exposing the XGBoost replenishment classifier for consumption by the IMS.
 
