@@ -51,6 +51,12 @@ class PaymentVerificationFailedException(IMSException):
         super().__init__(message, status.HTTP_400_BAD_REQUEST)
 
 
+class MLServiceUnavailableException(IMSException):
+    """Exception raised when the ML Replenishment Engine is unreachable or returns an error."""
+    def __init__(self, message: str = "Replenishment Engine is unavailable. Please try again later."):
+        super().__init__(message, status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
 def setup_exception_handlers(app: FastAPI) -> None:
     """Registers global exception handlers for FastAPI app."""
     @app.exception_handler(IMSException)

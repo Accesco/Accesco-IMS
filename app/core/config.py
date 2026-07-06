@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: str = "mockkeysecret456"
     RAZORPAY_WEBHOOK_SECRET: str = "mockwebhooksecret789"
 
+    # Replenishment Engine (ML Service)
+    REPLENISHMENT_ENGINE_URL: str = "http://localhost:8000"
+    REPLENISHMENT_ENGINE_TIMEOUT: int = 30
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -1,14 +1,10 @@
 # Virtual Environment
-accesco_env/
 venv/
-.env/
+accesco_env/
+ims_phase2_env/
 
 # Environment Variables
 .env
-
-# Python
-# Virtual environment
-venv/
 
 # Python cache
 __pycache__/
@@ -20,10 +16,8 @@ __pycache__/
 # Alembic
 *.sqlite3
 
-# VS Code
+# IDE
 .vscode/
-
-# PyCharm
 .idea/
 
 # Testing
@@ -54,19 +48,6 @@ dist/
 temp/
 tmp/
 
-# Environment variables
-.env
-
-# Pytest cache
-.pytest_cache/
-
-# IDE files
-.vscode/
-.idea/
-
-
-ims_phase2_env/
-
 # UI / Node.js
 node_modules/
 UI/dist/
@@ -74,3 +55,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# ML Model files (large binaries)
+*.pkl
+*.pickle
+*.h5
+*.pt
+*.onnx
+
+# Agents / AI config
+.agents/
+.gemini/
