@@ -1,6 +1,16 @@
+from enum import Enum
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
+from datetime import datetime
 
+
+class RiderStatus(str, Enum):
+    IDLE = "IDLE"
+    ASSIGNED = "ASSIGNED"
+    EN_ROUTE_PICKUP = "EN_ROUTE_PICKUP"
+    DELIVERING = "  "
+    RETURNING = "RETURNING"
+    OFFLINE = "OFFLINE"
 
 class RiderBase(BaseModel):
     name: str
@@ -8,7 +18,8 @@ class RiderBase(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     is_available: bool = True
-    status: str = "ONLINE"
+    status: RiderStatus = RiderStatus.IDLE
+    last_heartbeat_at: Optional[datetime] = None
 
 
 class RiderCreate(RiderBase):
@@ -21,7 +32,7 @@ class RiderUpdate(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     is_available: Optional[bool] = None
-    status: Optional[str] = None
+    status: Optional[RiderStatus] = None
 
 
 class RiderResponse(RiderBase):
@@ -30,3 +41,8 @@ class RiderResponse(RiderBase):
     model_config = ConfigDict(
         from_attributes=True
     )
+
+class RiderHeartbeat(BaseModel):
+    latitude: float
+    longitude: float
+    battery_level: float

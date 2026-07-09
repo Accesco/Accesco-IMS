@@ -1,19 +1,25 @@
 version: '3.8'
 
+networks:
+  accesco_net:
+    driver: bridge
+
 services:
   postgres:
     image: postgres:16-alpine
     container_name: accesco-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: accesco_ims
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-accesco_ims}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - accesco_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -25,6 +31,8 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - accesco_net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -39,6 +47,11 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    networks:
+      - accesco_net
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -57,6 +70,10 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - accesco_net
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
       interval: 10s
@@ -67,13 +84,64 @@ services:
     image: dpage/pgadmin4:8
     container_name: accesco-pgadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@accesco.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@accesco.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
     ports:
       - "5050:80"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    networks:
+      - accesco_net
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: accesco-backend
+    ports:
+      - "8000:8000"
+    environment:
+      PROJECT_NAME: ${PROJECT_NAME:-"Accesco Living IMS"}
+      API_V1_STR: ${API_V1_STR:-"/api/v1"}
+      DEBUG: ${DEBUG:-"true"}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-"supersecretkeythatisverylongandsecurechangeinproduction"}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-"HS256"}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-"60"}
+      DATABASE_URL: ${DATABASE_URL:-"postgresql+asyncpg://postgres:postgres@postgres:5432/accesco_ims"}
+      REDIS_URL: ${REDIS_URL:-"redis://redis:6379/0"}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-"kafka:29092"}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-"rzp_test_mockkeyid123"}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-"mockkeysecret456"}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-"mockwebhooksecret789"}
+      POSTGRES_HOST: ${POSTGRES_HOST:-"postgres"}
+      POSTGRES_PORT: ${POSTGRES_PORT:-"5432"}
+      POSTGRES_USER: ${POSTGRES_USER:-"postgres"}
+      RUN_SEED: ${RUN_SEED:-"true"}
+    volumes:
+      - .:/app
+      - /app/venv
+      - /app/__pycache__
+    networks:
+      - accesco_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
+  kafka_data:
+  zookeeper_data:
+  zookeeper_log:

@@ -96,8 +96,13 @@ async def evaluate_rider_eligibility_and_scores(
             
         heartbeat_time = rider.last_heartbeat_at.replace(tzinfo=timezone.utc) if rider.last_heartbeat_at.tzinfo is None else rider.last_heartbeat_at
         heartbeat_age_sec = (now - heartbeat_time).total_seconds()
-        if heartbeat_age_sec > 30.0:
-            logger.warning(f"Rejected rider {rider.id}: reason=HEARTBEAT_LOST (last updated {heartbeat_age_sec}s ago)")
+        # if heartbeat_age_sec > 30.0:
+        #     logger.warning(f"Rejected rider {rider.id}: reason=HEARTBEAT_LOST (last updated {heartbeat_age_sec}s ago)")
+        #     continue
+        # For testing purpose adding hearbeat checking from 30 sec to 6hrs 
+        #  - Jabez
+        if heartbeat_age_sec > 36000.0: 
+            logger.warning(f"Rejected rider {rider.id}: reason=HEARTBEAT_LOST")
             continue
             
         load = await repository.get_rider_active_load_count(db, rider.id)

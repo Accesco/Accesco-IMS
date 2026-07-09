@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.rider import Rider
 from app.modules.riders.repository import RiderRepository
-from app.modules.riders.schemas import RiderCreate
+from app.modules.riders.schemas import RiderCreate, RiderUpdate
 
 
 class ResourceNotFoundException(Exception):
@@ -48,3 +48,29 @@ class RiderService:
         if not rider:
             raise ResourceNotFoundException("Rider not found")
         return rider
+    async def update_rider(self, rider_id: int, rider_data: RiderUpdate) -> Rider:
+        # 1. Fetch the existing rider (this automatically handles the 404 Not Found logic)
+        rider = await self.get_rider(rider_id)
+
+        # 2. Extract only the fields that were provided in the request body
+        update_data = rider_data.model_dump(exclude_unset=True)
+
+        # 3. Apply the updates to the SQLAlchemy model instance
+        for key, value in update_data.items():
+            setattr(rider, key, value)
+
+        # 4. Commit the transaction and refresh the instance
+        await self.repo.db.commit()
+        await self.repo.db.refresh(rider)
+        
+        return rider
+    
+    async def delete_rider(self, rider_id: int) -> None:
+        # 1. Fetch the existing rider (this automatically verifies they exist and handles the 404)
+        rider = await self.get_rider(rider_id)
+
+        # 2. Delete the rider instance from the session
+        await self.repo.db.delete(rider)
+
+        # 3. Commit the transaction to the database
+        await self.repo.db.commit()
