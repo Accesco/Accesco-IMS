@@ -12,6 +12,7 @@ from app.models.rider import Rider
 from app.models.community import Community
 from app.models.batch import Batch
 from app.models.audit import AuditLog
+from app.models.replenishment import ReplenishmentRecommendation
 
 __all__ = [
     "Base",
@@ -31,5 +32,7 @@ __all__ = [
     "Rider",
     "Community",
     "Batch",
-    "AuditLog"
+    "AuditLog",
+    # Phase 3 Exports
+    "ReplenishmentRecommendation",
 ]
