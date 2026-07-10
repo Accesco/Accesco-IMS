@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict,Field
 from typing import List, Optional
 
 class RoleBase(BaseModel):
@@ -10,11 +10,11 @@ class RoleResponse(RoleBase):
     model_config = ConfigDict(from_attributes=True)
 
 class UserBase(BaseModel):
-    username: str
+    username: str = Field(min_length=3, max_length=30)
     email: EmailStr
 
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(min_length=8, max_length=30)
     roles: Optional[List[str]] = ["Viewer"]  # Default role is Viewer
 
 class UserLogin(BaseModel):
