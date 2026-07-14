@@ -18,9 +18,12 @@ from app.core.geo_utils import is_point_in_polygon
 
 
 async def get_order_for_update(db: AsyncSession, order_id: int) -> Optional[Order]:
-    result = await db.execute(
-        select(Order).where(Order.id == order_id).with_for_update()
-    )
+    query = select(Order).where(Order.id == order_id)
+    # FOR UPDATE is a PostgreSQL feature; SQLite (test DB) does not support it
+    dialect = db.bind.dialect.name if db.bind else "sqlite"
+    if dialect != "sqlite":
+        query = query.with_for_update()
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 
