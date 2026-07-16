@@ -203,7 +203,7 @@ class OrderService:
 
     async def cancel_order(self, order_id: int, user_id: int = None) -> Order:
         order = await self.get_order_by_id(order_id)
-        if order.status in ["CANCELLED", "DELIVERED", "FAILED"]:
+        if order.status in ["CANCELLED", "COMPLETED", "DELIVERED", "FAILED"]:
             raise IMSException(f"Order cannot be cancelled in state: {order.status}", 400)
             
         old_status = order.status
