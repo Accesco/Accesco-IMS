@@ -1,10 +1,10 @@
-from typing import Optional, List
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.schemas import UserCreate, UserLogin
-from app.models.auth import User, Role
+from app.models.auth import User
 from app.core.security import get_password_hash, verify_password, create_access_token
-from app.core.exceptions import UserAlreadyExistsException, InvalidCredentialsException
+from app.core.exceptions import IMSException, UserAlreadyExistsException, InvalidCredentialsException
 
 class AuthService:
     def __init__(self, db: AsyncSession):
@@ -21,20 +21,12 @@ class AuthService:
         if existing_email:
             raise UserAlreadyExistsException("Email is already registered")
 
-        # Resolve roles
-        resolved_roles: List[Role] = []
-        role_list = user_data.roles or ["Viewer"]
-        for role_name in role_list:
-            role = await self.repo.get_role_by_name(role_name)
-            if not role:
-                # Dynamically create role if not found to ensure resilience
-                role = Role(name=role_name, description=f"{role_name} role")
-                self.repo.db.add(role)
-                await self.repo.db.flush()
-            resolved_roles.append(role)
+        viewer_role = await self.repo.get_role_by_name("Viewer")
+        if not viewer_role:
+            raise IMSException("Viewer role is not configured")
 
         hashed_password = get_password_hash(user_data.password)
-        user = await self.repo.create_user(user_data, hashed_password, resolved_roles)
+        user = await self.repo.create_user(user_data, hashed_password, [viewer_role])
         return user
 
     async def authenticate_user(self, login_data: UserLogin) -> dict:

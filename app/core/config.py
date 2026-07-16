@@ -7,12 +7,23 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Accesco Living IMS"
     API_V1_STR: str = "/api/v1"
-    DEBUG: bool = True
+    DEBUG: bool = False
 
     # Security
     JWT_SECRET_KEY: str = "supersecretkeythatisverylongandsecurechangeinproduction"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
+    # CORS: configure production frontend origins with CORS_ORIGINS as a JSON list.
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+
+    # Authentication rate limiting
+    AUTH_LOGIN_RATE_LIMIT: int = 5
+    AUTH_REGISTRATION_RATE_LIMIT: int = 5
+    AUTH_RATE_LIMIT_WINDOW_SECONDS: int = 60
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/accesco_ims"

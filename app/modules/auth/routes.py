@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 from app.core.database import get_db
+from app.core.rate_limit import enforce_login_rate_limit, enforce_registration_rate_limit
 from app.core.security import decode_access_token
 from app.core.exceptions import UnauthorizedException, ForbiddenException
 from app.models.auth import User
@@ -57,13 +58,21 @@ class RoleChecker:
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
-async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
+async def register(
+    user_data: UserCreate,
+    db: AsyncSession = Depends(get_db),
+    _rate_limit: None = Depends(enforce_registration_rate_limit),
+):
     auth_service = AuthService(db)
     return await auth_service.register_user(user_data)
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(login_data: UserLogin, db: AsyncSession = Depends(get_db)):
+async def login(
+    login_data: UserLogin,
+    db: AsyncSession = Depends(get_db),
+    _rate_limit: None = Depends(enforce_login_rate_limit),
+):
     auth_service = AuthService(db)
     return await auth_service.authenticate_user(login_data)
 
