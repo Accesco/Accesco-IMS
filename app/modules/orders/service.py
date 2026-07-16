@@ -6,10 +6,11 @@ from typing import List, Optional, Tuple
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ResourceNotFoundException, IMSException
+from app.core.exceptions import ResourceNotFoundException, IMSException, ForbiddenException
 from app.core.events import create_outbox_event
 from app.models.order import Order
 from app.models.store import Store
+from app.models.auth import User
 from app.modules.orders.repository import OrderRepository
 from app.modules.orders.schemas import OrderCreate
 from app.core.geo_utils import haversine_distance, classify_zone_and_sla
@@ -37,10 +38,34 @@ class OrderService:
     def __init__(self, db: AsyncSession):
         self.repo = OrderRepository(db)
 
-    async def get_order_by_id(self, order_id: int) -> Order:
+    def _validate_order_access(self, order: Order, current_user: User) -> None:
+        """
+        Validates that the current user has permission to access the given order.
+        - Admin and Store Manager roles can access any order.
+        - Customers can only access their own orders.
+        - All other cases raise ForbiddenException.
+        """
+        user_roles = [role.name for role in current_user.roles]
+
+        # Admin and Store Manager can access any order
+        if "Admin" in user_roles or "StoreManager" in user_roles:
+            return
+
+        # Customers can only access their own orders
+        if order.customer_id == current_user.id:
+            return
+
+        raise ForbiddenException("You do not have permission to access this order")
+
+    async def get_order_by_id(self, order_id: int, current_user: Optional[User] = None) -> Order:
         order = await self.repo.get_order_by_id(order_id)
         if not order:
             raise ResourceNotFoundException(f"Order with ID {order_id} not found")
+
+        # Enforce ownership if a user context is provided (skipped for internal/system calls)
+        if current_user is not None:
+            self._validate_order_access(order, current_user)
+
         return order
 
     async def get_orders(
@@ -201,8 +226,13 @@ class OrderService:
 
         return order
 
-    async def cancel_order(self, order_id: int, user_id: int = None) -> Order:
+    async def cancel_order(self, order_id: int, user_id: int = None, current_user: Optional[User] = None) -> Order:
         order = await self.get_order_by_id(order_id)
+
+        # Enforce ownership if a user context is provided (skipped for internal/system calls)
+        if current_user is not None:
+            self._validate_order_access(order, current_user)
+
         if order.status in ["CANCELLED", "COMPLETED", "DELIVERED", "FAILED"]:
             raise IMSException(f"Order cannot be cancelled in state: {order.status}", 400)
             

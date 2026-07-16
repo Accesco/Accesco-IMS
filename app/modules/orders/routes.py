@@ -58,10 +58,10 @@ async def place_order(
 async def get_order(
     order_id: int,
     db: AsyncSession = Depends(get_db),
-    _current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     service = OrderService(db)
-    return await service.get_order_by_id(order_id)
+    return await service.get_order_by_id(order_id, current_user=current_user)
 
 
 @router.patch("/{order_id}/status", response_model=OrderResponse)
@@ -82,7 +82,7 @@ async def update_order_status(
 async def cancel_order(
     order_id: int,
     db: AsyncSession = Depends(get_db),
-    _current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     service = OrderService(db)
-    return await service.cancel_order(order_id, user_id=_current_user.id)
+    return await service.cancel_order(order_id, user_id=current_user.id, current_user=current_user)
