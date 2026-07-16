@@ -143,14 +143,13 @@ class ConnectionManager:
         """Deliver an event to all locally connected WebSocket clients."""
         dead_connections: list[tuple[int, WebSocket]] = []
 
-        for user_id, sockets in self._connections.items():
-            for ws in sockets:
+        for user_id, sockets in list(self._connections.items()):
+            for ws in list(sockets):
                 try:
                     if ws.client_state == WebSocketState.CONNECTED:
                         await ws.send_json(event)
                 except Exception:
                     dead_connections.append((user_id, ws))
-
         # Clean up broken connections
         for user_id, ws in dead_connections:
             if user_id in self._connections:
