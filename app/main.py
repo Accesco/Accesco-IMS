@@ -10,6 +10,8 @@ from app.core.redis import redis_service
 from app.core.kafka import kafka_producer
 from app.core.exceptions import setup_exception_handlers
 from app.api.v1.router import api_router
+from app.modules.websocket.manager import ws_manager
+from app.modules.websocket.routes import router as ws_router
 
 
 @asynccontextmanager
@@ -21,8 +23,11 @@ async def lifespan(app: FastAPI):
     except Exception:
         # Log and continue so local development without Kafka running doesn't crash startup immediately
         pass
+    # Start WebSocket manager with Redis Pub/Sub for cross-instance broadcasting
+    await ws_manager.start(redis_service)
     yield
     # Shutdown: Clean up external connections
+    await ws_manager.stop()
     await redis_service.disconnect()
     await kafka_producer.stop()
 
@@ -37,10 +42,10 @@ app = FastAPI(
 # Global CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Setup custom exception handler mappings
@@ -48,6 +53,9 @@ setup_exception_handlers(app)
 
 # Include main router
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# WebSocket routes are mounted at the root level (not under /api/v1)
+app.include_router(ws_router)
 
 
 # Health check endpoints

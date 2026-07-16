@@ -14,8 +14,9 @@ class UserBase(BaseModel):
     email: EmailStr
 
 class UserCreate(UserBase):
+    model_config = ConfigDict(extra="forbid")
+
     password: str = Field(min_length=8, max_length=30)
-    roles: Optional[List[str]] = ["Viewer"]  # Default role is Viewer
 
 class UserLogin(BaseModel):
     username: str
