@@ -7,7 +7,7 @@ from app.models.auth import Role
 async def test():
     async with async_session_maker() as db:
         service = AuthService(db)
-        user_data = UserCreate(username="test_script_debug", email="debug@example.com", password="password", roles=["Viewer"])
+        user_data = UserCreate(username="test_script_debug", email="debug@example.com", password="password", )
         try:
             # Replicating AuthService.register_user
             resolved_roles = []
