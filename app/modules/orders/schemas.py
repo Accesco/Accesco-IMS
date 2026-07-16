@@ -38,6 +38,10 @@ class OrderCreate(BaseModel):
     latitude: float
     longitude: float
 
+class OrderStatusUpdate(BaseModel):
+    """Schema for controlled order status transitions."""
+    status: str
+
 class OrderResponse(OrderBase):
     id: int
     created_at: datetime
@@ -46,6 +50,14 @@ class OrderResponse(OrderBase):
     delivery_zone: str
     sla_deadline: datetime
     assignment_status: str
+    rider_id: Optional[int] = None
     
     items: List[OrderItemResponse]
     model_config = ConfigDict(from_attributes=True)
+
+class OrderListResponse(BaseModel):
+    """Paginated response wrapper for order lists."""
+    orders: List[OrderResponse]
+    total: int
+    skip: int
+    limit: int
