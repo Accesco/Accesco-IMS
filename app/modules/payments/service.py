@@ -1,8 +1,10 @@
 import hmac
 import hashlib
 import logging
+import math
 from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
+# pyrefly: ignore [missing-import]
 import razorpay
 
 from app.core.config import settings
@@ -66,20 +68,15 @@ class PaymentService:
     def verify_webhook_signature(self, payload_body: bytes, signature: str) -> bool:
         """
         Verifies Razorpay Webhook signature using HMAC-SHA256.
+        No fallback or bypass logic — only genuine HMAC verification.
         """
-        if settings.RAZORPAY_WEBHOOK_SECRET == "mockwebhooksecret789":
-            # For local mock testing, bypass signature check if specific test header is provided
-            if signature == "mock_signature_bypass":
-                return True
-
         try:
-            # In python, we can verify manually:
             expected_signature = hmac.new(
                 key=settings.RAZORPAY_WEBHOOK_SECRET.encode("utf-8"),
                 msg=payload_body,
                 digestmod=hashlib.sha256
             ).hexdigest()
-            
+
             return hmac.compare_digest(expected_signature, signature)
         except Exception as e:
             logger.error(f"Webhook signature calculation error: {e}")
@@ -89,6 +86,7 @@ class PaymentService:
         """
         Processes Razorpay Webhook payload.
         Emits payments.confirmed Kafka event if payment is captured/confirmed.
+        Validates order existence and payment amount before confirming.
         """
         event_type = event_data.get("event")
         
@@ -125,6 +123,22 @@ class PaymentService:
 
             if not order_id:
                 logger.warning("Could not associate Razorpay webhook with any IMS Order ID")
+                return
+
+            # Verify the order actually exists in the database
+            order = await self.repo.get_order(order_id)
+            if not order:
+                logger.warning(f"Webhook references Order ID {order_id} which does not exist in database. Ignoring.")
+                return
+
+            # Validate payment amount matches the order total
+            order_total = float(order.total_amount)
+            if not math.isclose(amount, order_total, rel_tol=1e-2):
+                logger.warning(
+                    f"Payment amount mismatch for Order ID {order_id}: "
+                    f"webhook_amount={amount}, order_total={order_total}. "
+                    f"Rejecting payment confirmation."
+                )
                 return
 
             logger.info(f"Payment captured for Order ID {order_id}. Emitting payments.confirmed event.")
