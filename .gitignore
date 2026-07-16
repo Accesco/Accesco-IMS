@@ -5,8 +5,12 @@ ims_phase2_env/
 
 # Environment Variables
 .env
-#local environment (bug fixes)
+.env.*
+!.env.example
+
+# Local environment (bug fixes)
 .bugfixes/
+
 # Python cache
 __pycache__/
 *.pyc

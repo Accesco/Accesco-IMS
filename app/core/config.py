@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # Security
-    JWT_SECRET_KEY: str = "supersecretkeythatisverylongandsecurechangeinproduction"
+    JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
@@ -35,16 +35,16 @@ class Settings(BaseSettings):
     KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
 
     # Razorpay
-    RAZORPAY_KEY_ID: str = "rzp_test_mockkeyid123"
-    RAZORPAY_KEY_SECRET: str = "mockkeysecret456"
-    RAZORPAY_WEBHOOK_SECRET: str = "mockwebhooksecret789"
+    RAZORPAY_KEY_ID: str
+    RAZORPAY_KEY_SECRET: str
+    RAZORPAY_WEBHOOK_SECRET: str
 
     # Replenishment Engine (ML Service)
     REPLENISHMENT_ENGINE_URL: str = "http://localhost:8000"
     REPLENISHMENT_ENGINE_TIMEOUT: int = 30
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env.example", ".env"),
         env_file_encoding="utf-8",
         extra="ignore"
     )
