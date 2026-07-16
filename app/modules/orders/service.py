@@ -2,29 +2,90 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
-from typing import List
+from typing import List, Optional, Tuple
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ResourceNotFoundException, IMSException
+from app.core.exceptions import ResourceNotFoundException, IMSException, ForbiddenException
 from app.core.events import create_outbox_event
 from app.models.order import Order
 from app.models.store import Store
+from app.models.auth import User
 from app.modules.orders.repository import OrderRepository
 from app.modules.orders.schemas import OrderCreate
 from app.core.geo_utils import haversine_distance, classify_zone_and_sla
 from app.modules.audit.service import AuditLogService
+from app.modules.websocket.events import publish_event
+
+
+# Allowed order status transitions. Each key maps to the set of valid next states.
+VALID_ORDER_TRANSITIONS = {
+    "PENDING": {"CONFIRMED", "CANCELLED"},
+    "CONFIRMED": {"READY_FOR_DISPATCH", "CANCELLED"},
+    "READY_FOR_DISPATCH": {"RIDER_ASSIGNED", "CANCELLED"},
+    "RIDER_ASSIGNED": {"DISPATCHED", "CANCELLED"},
+    "DISPATCHED": {"PICKED_UP", "CANCELLED", "FAILED"},
+    "PICKED_UP": {"IN_TRANSIT", "FAILED"},
+    "IN_TRANSIT": {"DELIVERED", "FAILED"},
+    "DELIVERED": {"RETURNED"},
+    "CANCELLED": set(),
+    "FAILED": set(),
+    "RETURNED": set(),
+}
 
 
 class OrderService:
     def __init__(self, db: AsyncSession):
         self.repo = OrderRepository(db)
 
-    async def get_order_by_id(self, order_id: int) -> Order:
+    def _validate_order_access(self, order: Order, current_user: User) -> None:
+        """
+        Validates that the current user has permission to access the given order.
+        - Admin and Store Manager roles can access any order.
+        - Customers can only access their own orders.
+        - All other cases raise ForbiddenException.
+        """
+        user_roles = [role.name for role in current_user.roles]
+
+        # Admin and Store Manager can access any order
+        if "Admin" in user_roles or "StoreManager" in user_roles:
+            return
+
+        # Customers can only access their own orders
+        if order.customer_id == current_user.id:
+            return
+
+        raise ForbiddenException("You do not have permission to access this order")
+
+    async def get_order_by_id(self, order_id: int, current_user: Optional[User] = None) -> Order:
         order = await self.repo.get_order_by_id(order_id)
         if not order:
             raise ResourceNotFoundException(f"Order with ID {order_id} not found")
+
+        # Enforce ownership if a user context is provided (skipped for internal/system calls)
+        if current_user is not None:
+            self._validate_order_access(order, current_user)
+
         return order
+
+    async def get_orders(
+        self,
+        skip: int = 0,
+        limit: int = 50,
+        status: Optional[str] = None,
+        store_id: Optional[int] = None,
+        customer_id: Optional[int] = None,
+        assignment_status: Optional[str] = None,
+    ) -> Tuple[List[Order], int]:
+        """Retrieve paginated and filtered orders."""
+        return await self.repo.get_orders(
+            skip=skip,
+            limit=limit,
+            status=status,
+            store_id=store_id,
+            customer_id=customer_id,
+            assignment_status=assignment_status,
+        )
 
     async def get_orders_by_customer(self, customer_id: int) -> List[Order]:
         return await self.repo.get_orders_by_customer(customer_id)
@@ -61,9 +122,7 @@ class OrderService:
             new_values={"total_amount": float(order.total_amount), "store_id": order.store_id}
         )
 
-        await self.repo.db.commit()
-
-        # 4. Prepare Kafka outbox event
+        # 4. Create outbox event within the same transaction (atomicity fix)
         items_payload = [
             {
                 "product_id": item.product_id,
@@ -88,12 +147,93 @@ class OrderService:
                 "items": items_payload
             }
         )
+
+        await self.repo.db.commit()
+
+        # 5. Emit real-time event after successful commit
+        await publish_event(
+            event_type="ORDER_CREATED",
+            entity_type="order",
+            entity_id=order.id,
+            data={
+                "order_id": order.id,
+                "customer_id": customer_id,
+                "store_id": order.store_id,
+                "status": order.status,
+                "total_amount": float(order.total_amount),
+                "delivery_zone": order.delivery_zone,
+            },
+        )
         
         return order
 
-    async def cancel_order(self, order_id: int, user_id: int = None) -> Order:
+    async def update_order_status(self, order_id: int, new_status: str, user_id: int = None) -> Order:
+        """
+        Perform a controlled order status transition with validation.
+        Raises IMSException if the transition is not allowed.
+        """
+        order = await self.repo.get_order_by_id_for_update(order_id)
+        if not order:
+            raise ResourceNotFoundException(f"Order with ID {order_id} not found")
+
+        old_status = order.status
+
+        # Validate the transition
+        allowed = VALID_ORDER_TRANSITIONS.get(old_status, set())
+        if new_status not in allowed:
+            raise IMSException(
+                f"Invalid status transition: {old_status} → {new_status}. "
+                f"Allowed transitions: {', '.join(sorted(allowed)) if allowed else 'none (terminal state)'}",
+                400,
+            )
+
+        await self.repo.update_order_status(order, new_status)
+
+        await AuditLogService(self.repo.db).log_action(
+            module="Orders",
+            action="UPDATE_ORDER_STATUS",
+            user_id=user_id,
+            entity_id=str(order.id),
+            old_values={"status": old_status},
+            new_values={"status": new_status},
+        )
+
+        await create_outbox_event(
+            self.repo.db,
+            "orders.status_changed",
+            {
+                "order_id": order.id,
+                "old_status": old_status,
+                "new_status": new_status,
+            },
+        )
+
+        await self.repo.db.commit()
+
+        # Emit real-time event after successful commit
+        await publish_event(
+            event_type="ORDER_STATUS_CHANGED",
+            entity_type="order",
+            entity_id=order.id,
+            data={
+                "order_id": order.id,
+                "old_status": old_status,
+                "new_status": new_status,
+                "rider_id": order.rider_id,
+                "store_id": order.store_id,
+            },
+        )
+
+        return order
+
+    async def cancel_order(self, order_id: int, user_id: int = None, current_user: Optional[User] = None) -> Order:
         order = await self.get_order_by_id(order_id)
-        if order.status in ["CANCELLED", "COMPLETED"]:
+
+        # Enforce ownership if a user context is provided (skipped for internal/system calls)
+        if current_user is not None:
+            self._validate_order_access(order, current_user)
+
+        if order.status in ["CANCELLED", "COMPLETED", "DELIVERED", "FAILED"]:
             raise IMSException(f"Order cannot be cancelled in state: {order.status}", 400)
             
         old_status = order.status
@@ -112,9 +252,7 @@ class OrderService:
             new_values={"status": "CANCELLED", "payment_status": "REFUNDED"}
         )
 
-        await self.repo.db.commit()
-
-        # Emit orders.cancelled event
+        # Create outbox event within the same transaction (atomicity fix)
         await create_outbox_event(
             self.repo.db,
             "orders.cancelled",
@@ -122,6 +260,21 @@ class OrderService:
                 "order_id": order.id,
                 "customer_id": order.customer_id
             }
+        )
+
+        await self.repo.db.commit()
+
+        # Emit real-time event after successful commit
+        await publish_event(
+            event_type="ORDER_STATUS_CHANGED",
+            entity_type="order",
+            entity_id=order.id,
+            data={
+                "order_id": order.id,
+                "old_status": old_status,
+                "new_status": "CANCELLED",
+                "store_id": order.store_id,
+            },
         )
         
         return order

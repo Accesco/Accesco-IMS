@@ -6,7 +6,7 @@ from app.modules.auth.service import AuthService
 async def test():
     async with async_session_maker() as db:
         service = AuthService(db)
-        user_data = UserCreate(username="test_script3", email="script3@example.com", password="password", roles=["Viewer"])
+        user_data = UserCreate(username="test_script3", email="script3@example.com", password="password", )
         try:
             user = await service.register_user(user_data)
             await db.commit()

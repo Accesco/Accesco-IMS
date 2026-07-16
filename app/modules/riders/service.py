@@ -9,10 +9,7 @@ from app.models.rider import Rider
 from app.modules.riders.repository import RiderRepository
 from app.modules.riders.schemas import RiderCreate, RiderUpdate
 from app.modules.audit.service import AuditLogService
-
-
-class ResourceNotFoundException(Exception):
-    pass
+from app.core.exceptions import ResourceNotFoundException
 
 
 class RiderService:

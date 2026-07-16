@@ -16,6 +16,7 @@ from app.core.geo_utils import (
 )
 from app.modules.dispatch import repository
 from app.modules.audit.service import AuditLogService
+from app.modules.websocket.events import publish_event
 
 # Global imports (Safe because service files do not cause circular dependency loops)
 from app.models.rider import Rider
@@ -33,7 +34,7 @@ VALID_TRANSITIONS = {
     "IDLE": ["ASSIGNED", "OFFLINE"],
     "ASSIGNED": ["EN_ROUTE_PICKUP", "IDLE", "OFFLINE"],
     "EN_ROUTE_PICKUP": ["DELIVERING", "IDLE", "OFFLINE"],
-    "DELIVERING": ["RETURNING", "OFFLINE"],
+    "DELIVERING": ["RETURNING", "IDLE", "OFFLINE"],
     "RETURNING": ["BATCHING", "IDLE", "OFFLINE"],
     "BATCHING": ["DELIVERING", "IDLE", "OFFLINE"],
     "OFFLINE": ["IDLE"]
@@ -319,6 +320,19 @@ async def respond_to_assignment(
                 ord_item.assignment_status = "ASSIGNED"
                 
             await db.commit()
+
+            # Emit real-time event for batch rider assignment
+            await publish_event(
+                event_type="RIDER_ASSIGNED",
+                entity_type="batch",
+                entity_id=batch.id,
+                data={
+                    "batch_id": batch.id,
+                    "rider_id": rider.id,
+                    "order_ids": [o.id for o in batch.orders],
+                    "status": "ASSIGNED",
+                },
+            )
             return {"status": "BATCH_ACCEPTED", "sequence": [o["id"] for o in optimized]}
         
         elif order_id:
@@ -330,7 +344,21 @@ async def respond_to_assignment(
             order.offered_rider_id = None
             order.assignment_offered_at = None
             order.assignment_status = "ASSIGNED"
+            order.status = "RIDER_ASSIGNED"
             await db.commit()
+
+            # Emit real-time event for solo rider assignment
+            await publish_event(
+                event_type="RIDER_ASSIGNED",
+                entity_type="order",
+                entity_id=order.id,
+                data={
+                    "order_id": order.id,
+                    "rider_id": rider.id,
+                    "status": order.status,
+                    "assignment_status": order.assignment_status,
+                },
+            )
             return {"status": "ORDER_ACCEPTED", "order_id": order.id}
 
     else:
@@ -396,3 +424,156 @@ async def execute_manual_sweep(db: AsyncSession):
     # Local import inside the function breaks the module-load circular import loop
     from app.modules.dispatch.tasks import run_dispatch_sweep_cycle
     await run_dispatch_sweep_cycle(db)
+
+
+# ─── Dispatch Lifecycle Functions ─────────────────────────────────────────────
+
+async def pickup_order(db: AsyncSession, order_id: int, user_id: int = None) -> Order:
+    """Mark an order as PICKED_UP by the assigned rider."""
+    order = await repository.get_order_for_update(db, order_id)
+    if not order:
+        raise ResourceNotFoundException("Order not found")
+
+    if order.status not in ("RIDER_ASSIGNED", "DISPATCHED"):
+        raise IMSException(
+            f"Cannot pick up order in status: {order.status}. Expected RIDER_ASSIGNED or DISPATCHED.", 400
+        )
+    if not order.rider_id:
+        raise IMSException("Order has no assigned rider", 400)
+
+    old_status = order.status
+    order.status = "PICKED_UP"
+
+    rider = await db.get(Rider, order.rider_id)
+    if rider:
+        await update_rider_state(db, rider, "EN_ROUTE_PICKUP", trigger="ORDER_PICKED_UP")
+
+    await AuditLogService(db).log_action(
+        module="Dispatch", action="ORDER_PICKED_UP", user_id=user_id,
+        entity_id=str(order.id),
+        old_values={"status": old_status},
+        new_values={"status": "PICKED_UP"},
+    )
+    await repository.create_outbox_event(db, "orders.status_changed", {
+        "order_id": order.id, "old_status": old_status, "new_status": "PICKED_UP",
+    })
+    await db.commit()
+
+    await publish_event(
+        event_type="ORDER_PICKED_UP", entity_type="order", entity_id=order.id,
+        data={"order_id": order.id, "rider_id": order.rider_id, "status": "PICKED_UP"},
+    )
+    return order
+
+
+async def start_transit(db: AsyncSession, order_id: int, user_id: int = None) -> Order:
+    """Mark an order as IN_TRANSIT (rider is delivering)."""
+    order = await repository.get_order_for_update(db, order_id)
+    if not order:
+        raise ResourceNotFoundException("Order not found")
+
+    if order.status != "PICKED_UP":
+        raise IMSException(f"Cannot start transit for order in status: {order.status}. Expected PICKED_UP.", 400)
+    if not order.rider_id:
+        raise IMSException("Order has no assigned rider", 400)
+
+    old_status = order.status
+    order.status = "IN_TRANSIT"
+
+    rider = await db.get(Rider, order.rider_id)
+    if rider:
+        await update_rider_state(db, rider, "DELIVERING", trigger="ORDER_IN_TRANSIT")
+
+    await AuditLogService(db).log_action(
+        module="Dispatch", action="ORDER_IN_TRANSIT", user_id=user_id,
+        entity_id=str(order.id),
+        old_values={"status": old_status},
+        new_values={"status": "IN_TRANSIT"},
+    )
+    await repository.create_outbox_event(db, "orders.status_changed", {
+        "order_id": order.id, "old_status": old_status, "new_status": "IN_TRANSIT",
+    })
+    await db.commit()
+
+    await publish_event(
+        event_type="ORDER_IN_TRANSIT", entity_type="order", entity_id=order.id,
+        data={"order_id": order.id, "rider_id": order.rider_id, "status": "IN_TRANSIT"},
+    )
+    return order
+
+
+async def deliver_order(db: AsyncSession, order_id: int, user_id: int = None) -> Order:
+    """Mark an order as DELIVERED and release the rider."""
+    order = await repository.get_order_for_update(db, order_id)
+    if not order:
+        raise ResourceNotFoundException("Order not found")
+
+    if order.status != "IN_TRANSIT":
+        raise IMSException(f"Cannot deliver order in status: {order.status}. Expected IN_TRANSIT.", 400)
+    if not order.rider_id:
+        raise IMSException("Order has no assigned rider", 400)
+
+    old_status = order.status
+    order.status = "DELIVERED"
+    order.assignment_status = "COMPLETED"
+
+    rider = await db.get(Rider, order.rider_id)
+    if rider:
+        await update_rider_state(db, rider, "RETURNING", trigger="ORDER_DELIVERED")
+        rider.is_available = True
+
+    await AuditLogService(db).log_action(
+        module="Dispatch", action="ORDER_DELIVERED", user_id=user_id,
+        entity_id=str(order.id),
+        old_values={"status": old_status},
+        new_values={"status": "DELIVERED"},
+    )
+    await repository.create_outbox_event(db, "orders.status_changed", {
+        "order_id": order.id, "old_status": old_status, "new_status": "DELIVERED",
+    })
+    await db.commit()
+
+    await publish_event(
+        event_type="ORDER_DELIVERED", entity_type="order", entity_id=order.id,
+        data={"order_id": order.id, "rider_id": order.rider_id, "status": "DELIVERED"},
+    )
+    return order
+
+
+async def fail_delivery(db: AsyncSession, order_id: int, user_id: int = None) -> Order:
+    """Mark a delivery as FAILED and release the rider."""
+    order = await repository.get_order_for_update(db, order_id)
+    if not order:
+        raise ResourceNotFoundException("Order not found")
+
+    if order.status not in ("DISPATCHED", "PICKED_UP", "IN_TRANSIT"):
+        raise IMSException(
+            f"Cannot fail order in status: {order.status}. "
+            f"Expected DISPATCHED, PICKED_UP, or IN_TRANSIT.", 400
+        )
+
+    old_status = order.status
+    order.status = "FAILED"
+    order.assignment_status = "FAILED"
+
+    rider = await db.get(Rider, order.rider_id) if order.rider_id else None
+    if rider:
+        await update_rider_state(db, rider, "IDLE", trigger="DELIVERY_FAILED")
+        rider.is_available = True
+
+    await AuditLogService(db).log_action(
+        module="Dispatch", action="DELIVERY_FAILED", user_id=user_id,
+        entity_id=str(order.id),
+        old_values={"status": old_status},
+        new_values={"status": "FAILED"},
+    )
+    await repository.create_outbox_event(db, "orders.status_changed", {
+        "order_id": order.id, "old_status": old_status, "new_status": "FAILED",
+    })
+    await db.commit()
+
+    await publish_event(
+        event_type="ORDER_STATUS_CHANGED", entity_type="order", entity_id=order.id,
+        data={"order_id": order.id, "rider_id": order.rider_id, "status": "FAILED"},
+    )
+    return order
