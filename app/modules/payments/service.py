@@ -131,12 +131,13 @@ class PaymentService:
                 logger.warning(f"Webhook references Order ID {order_id} which does not exist in database. Ignoring.")
                 return
 
-            # Validate payment amount matches the order total
-            order_total = float(order.total_amount)
-            if not math.isclose(amount, order_total, rel_tol=1e-2):
+            # Validate payment amount matches the order total (compare in paise to avoid float tolerance)
+            webhook_amount_paise = int(round(amount * 100))
+            expected_amount_paise = int(round(float(order.total_amount) * 100))
+            if webhook_amount_paise != expected_amount_paise:
                 logger.warning(
                     f"Payment amount mismatch for Order ID {order_id}: "
-                    f"webhook_amount={amount}, order_total={order_total}. "
+                    f"webhook_amount_paise={webhook_amount_paise}, expected_amount_paise={expected_amount_paise}. "
                     f"Rejecting payment confirmation."
                 )
                 return
