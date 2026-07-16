@@ -121,17 +121,24 @@ class ConnectionManager:
 
     async def send_to_user(self, user_id: int, event: dict) -> None:
         """Send an event to a specific user's connections."""
-        sockets = self._connections.get(user_id, set())
-        dead = []
-        for ws in sockets:
+        sockets = self._connections.get(user_id)
+        if not sockets:
+            return
+
+        dead: list[WebSocket] = []
+        for ws in list(sockets):
             try:
                 if ws.client_state == WebSocketState.CONNECTED:
                     await ws.send_json(event)
             except Exception:
                 dead.append(ws)
+
         for ws in dead:
             sockets.discard(ws)
 
+        if not sockets:
+            self._connections.pop(user_id, None)
+            self._user_meta.pop(user_id, None)
     async def _deliver_to_local_clients(self, event: dict) -> None:
         """Deliver an event to all locally connected WebSocket clients."""
         dead_connections: list[tuple[int, WebSocket]] = []
