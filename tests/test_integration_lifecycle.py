@@ -29,7 +29,8 @@ from app.modules.dispatch import service as dispatch_service
 from app.modules.orders.service import OrderService
 from app.core.exceptions import IMSException
 
-_DB = os.path.join(tempfile.gettempdir(), "ims_integration_test.db")
+_DB_FD, _DB = tempfile.mkstemp(prefix="ims_integration_test_", suffix=".db")
+os.close(_DB_FD)
 _ENGINE = create_async_engine(f"sqlite+aiosqlite:///{_DB}", connect_args={"check_same_thread": False})
 _SESSION = async_sessionmaker(bind=_ENGINE, class_=AsyncSession, expire_on_commit=False, autoflush=False)
 
