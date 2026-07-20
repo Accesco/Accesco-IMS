@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import json
 import logging
@@ -7,10 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import async_session_maker
+from app.core.redis import redis_service
 from app.modules.orders.service import OrderService
 from app.modules.inventory.service import InventoryService
 from app.modules.inventory.schemas import InventoryReservationCreate
 from app.modules.procurement.service import ProcurementService
+from app.modules.dashboard.consumer import DashboardEventHandler
+from app.modules.dashboard.cache import DashboardCacheManager
+from app.modules.dashboard.notifier import notifier as dashboard_notifier
 
 logging.basicConfig(
     level=logging.INFO,
@@ -18,6 +23,18 @@ logging.basicConfig(
     stream=sys.stdout
 )
 logger = logging.getLogger("kafka_consumer_worker")
+
+# Shared dashboard event handler — constructed once for the lifetime of the worker
+_dashboard_handler: DashboardEventHandler | None = None
+
+def get_dashboard_handler() -> DashboardEventHandler:
+    global _dashboard_handler
+    if _dashboard_handler is None:
+        if redis_service.client is None:
+            redis_service.connect()
+        cache_manager = DashboardCacheManager(redis_service)
+        _dashboard_handler = DashboardEventHandler(cache_manager, dashboard_notifier)
+    return _dashboard_handler
 
 async def process_message(topic: str, payload: dict) -> None:
     logger.info(f"Processing event from topic '{topic}': {payload}")
@@ -93,13 +110,27 @@ async def process_message(topic: str, payload: dict) -> None:
 
             else:
                 logger.warning(f"Unrecognized topic: {topic}")
-                
+
         except Exception as e:
             logger.error(f"Error processing message from topic '{topic}': {e}", exc_info=True)
             await db.rollback()
 
+    # ── Dashboard side-effects (cache invalidation + WebSocket broadcast) ──
+    # Called outside the DB session block; failures are isolated inside handle().
+    await get_dashboard_handler().handle(topic, payload)
+
 async def main() -> None:
-    topics = ["payments.confirmed", "inventory.low", "orders.cancelled"]
+    topics = [
+        # Existing domain topics
+        "payments.confirmed",
+        "inventory.low",
+        "orders.cancelled",
+        # Dashboard-specific topics
+        "orders.created",
+        "orders.updated",
+        "inventory.updated",
+        "shipments.delivered",
+    ]
     logger.info(f"Subscribing to Kafka topics: {topics}")
     
     # Retry loop to connect to Kafka (handles broker starting up delayed)

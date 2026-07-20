@@ -10,6 +10,7 @@ from app.core.redis import redis_service
 from app.core.kafka import kafka_producer
 from app.core.exceptions import setup_exception_handlers
 from app.api.v1.router import api_router
+from app.middleware.dashboard_logging import DashboardLoggingMiddleware
 
 
 @asynccontextmanager
@@ -42,6 +43,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Structured per-request logging for all /dashboard endpoints
+app.add_middleware(DashboardLoggingMiddleware)
 
 # Setup custom exception handler mappings
 setup_exception_handlers(app)

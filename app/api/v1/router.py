@@ -16,6 +16,7 @@ from app.modules.dispatch.routes import router as dispatch_router
 # Phase 2 Addition: Import Communities Router
 from app.modules.communities.routes import router as communities_router
 from app.modules.audit.routes import router as audit_router
+from app.modules.dashboard.routes import router as dashboard_router
 
 # Phase 3 Addition: Import Replenishment Router
 from app.modules.replenishment.routes import router as replenishment_router
@@ -37,6 +38,6 @@ api_router.include_router(dispatch_router)
 # Phase 2 Addition: Include Communities Router
 api_router.include_router(communities_router)
 api_router.include_router(audit_router)
-
 # Phase 3 Addition: Include Replenishment Router
 api_router.include_router(replenishment_router)
+api_router.include_router(dashboard_router)
