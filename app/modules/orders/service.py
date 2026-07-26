@@ -21,7 +21,8 @@ from app.modules.websocket.events import publish_event
 # Allowed order status transitions. Each key maps to the set of valid next states.
 VALID_ORDER_TRANSITIONS = {
     "PENDING": {"CONFIRMED", "CANCELLED"},
-    "CONFIRMED": {"READY_FOR_DISPATCH", "CANCELLED"},
+    "CONFIRMED": {"READY_FOR_PICKING", "READY_FOR_DISPATCH", "CANCELLED"},
+    "READY_FOR_PICKING": {"READY_FOR_DISPATCH", "CANCELLED"},
     "READY_FOR_DISPATCH": {"RIDER_ASSIGNED", "CANCELLED"},
     "RIDER_ASSIGNED": {"DISPATCHED", "CANCELLED"},
     "DISPATCHED": {"PICKED_UP", "CANCELLED", "FAILED"},
@@ -279,8 +280,83 @@ class OrderService:
         
         return order
 
+    async def allocate_order(self, order_id: int, user_id: int = None) -> Order:
+        """Atomically reserve inventory for all items in an order."""
+        order = await self.repo.get_order_by_id_for_update(order_id)
+        if not order:
+            raise ResourceNotFoundException(f"Order {order_id} not found")
+            
+        if order.status not in ["CONFIRMED", "PENDING"]:
+            raise IMSException(f"Cannot allocate order in status: {order.status}", 400)
+            
+        from app.modules.inventory.service import InventoryService
+        from app.modules.inventory.schemas import InventoryReservationCreate
+        
+        inventory_service = InventoryService(self.repo.db)
+        
+        # Idempotency check
+        existing = await inventory_service.get_reservations_by_order(str(order.id))
+        active_reservations = [r for r in existing if r.status == "PENDING"]
+        if active_reservations:
+            raise IMSException("Order already has active inventory reservations", 400)
+            
+        # Allocate all items automatically; if one fails, an exception is raised 
+        # and the whole transaction (including previous items) rolls back safely.
+        for item in order.items:
+            res_data = InventoryReservationCreate(
+                store_id=order.store_id,
+                product_id=item.product_id,
+                quantity=item.quantity,
+                order_id=str(order.id),
+                expires_in_seconds=600
+            )
+            await inventory_service.reserve_stock(res_data, user_id=user_id, auto_commit=False)
+            
+        await AuditLogService(self.repo.db).log_action(
+            module="Orders",
+            action="ALLOCATE_ORDER",
+            user_id=user_id,
+            entity_id=str(order.id),
+            new_values={"allocated": True}
+        )
+        
+        await self.repo.db.commit()
+        return order
+        
+    async def release_order(self, order_id: int, user_id: int = None) -> Order:
+        """Release all inventory reservations for an order."""
+        order = await self.repo.get_order_by_id_for_update(order_id)
+        if not order:
+            raise ResourceNotFoundException(f"Order {order_id} not found")
+            
+        from app.modules.inventory.service import InventoryService
+        inventory_service = InventoryService(self.repo.db)
+        
+        reservations = await inventory_service.get_reservations_by_order(str(order.id))
+        released_count = 0
+        for res in reservations:
+            if res.status == "PENDING":
+                await inventory_service.release_reservation(res.id, status="CANCELLED", user_id=user_id, auto_commit=False)
+                released_count += 1
+                
+        if released_count == 0:
+            raise IMSException("No active reservations found for this order", 400)
+            
+        await AuditLogService(self.repo.db).log_action(
+            module="Orders",
+            action="RELEASE_ORDER",
+            user_id=user_id,
+            entity_id=str(order.id),
+            new_values={"released_count": released_count}
+        )
+        
+        await self.repo.db.commit()
+        return order
+
     async def confirm_order_payment(self, order_id: int, user_id: int = None) -> Order:
-        order = await self.get_order_by_id(order_id)
+        order = await self.repo.get_order_by_id_for_update(order_id)
+        if not order:
+            raise ResourceNotFoundException(f"Order {order_id} not found")
         old_status = order.status
         old_payment = order.payment_status
 

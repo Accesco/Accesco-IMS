@@ -35,23 +35,15 @@ async def process_message(topic: str, payload: dict) -> None:
                 order = await order_service.confirm_order_payment(order_id)
                 logger.info(f"Confirmed Order ID {order_id} in database")
 
-                # 2. Create inventory reservations for each item in the order
-                inventory_service = InventoryService(db)
-                for item in order.items:
-                    res_data = InventoryReservationCreate(
-                        store_id=order.store_id,
-                        product_id=item.product_id,
-                        quantity=item.quantity,
-                        order_id=str(order.id),
-                        expires_in_seconds=600  # 10 minutes reservation
-                    )
-                    reservation = await inventory_service.reserve_stock(res_data)
-                    logger.info(
-                        f"Created stock reservation {reservation.id} for product {item.product_id} "
-                        f"in store {order.store_id} (quantity: {item.quantity})"
-                    )
-                
-                await db.commit()
+                # 2. Allocate inventory atomically
+                try:
+                    await order_service.allocate_order(order_id)
+                    logger.info(f"Successfully allocated inventory for Order ID {order_id}")
+                except Exception as e:
+                    if "already has active inventory reservations" in str(e):
+                        logger.info(f"Idempotency: Order {order_id} already allocated. Skipping.")
+                    else:
+                        raise e
                 logger.info(f"Successfully processed payments.confirmed for Order ID {order_id}")
 
             elif topic == "inventory.low":
@@ -91,6 +83,26 @@ async def process_message(topic: str, payload: dict) -> None:
                 await db.commit()
                 logger.info(f"Released {released_count} reservations for Order ID {order_id}")
 
+            elif topic == "picking.task_completed":
+                order_id = payload.get("order_id")
+                if not order_id:
+                    logger.error("Missing order_id in picking.task_completed payload")
+                    return
+                
+                # Turn inventory reservations into hard deductions
+                inventory_service = InventoryService(db)
+                reservations = await inventory_service.get_reservations_by_order(str(order_id))
+                
+                logger.info(f"Confirming reservations for Picked Order ID {order_id}. Found {len(reservations)} reservations.")
+                confirmed_count = 0
+                for res in reservations:
+                    if res.status == "PENDING":
+                        await inventory_service.confirm_reservation(res.id)
+                        confirmed_count += 1
+                        
+                await db.commit()
+                logger.info(f"Confirmed {confirmed_count} reservations for Picked Order ID {order_id}")
+
             else:
                 logger.warning(f"Unrecognized topic: {topic}")
                 
@@ -99,7 +111,7 @@ async def process_message(topic: str, payload: dict) -> None:
             await db.rollback()
 
 async def main() -> None:
-    topics = ["payments.confirmed", "inventory.low", "orders.cancelled"]
+    topics = ["payments.confirmed", "inventory.low", "orders.cancelled", "picking.task_completed"]
     logger.info(f"Subscribing to Kafka topics: {topics}")
     
     # Retry loop to connect to Kafka (handles broker starting up delayed)

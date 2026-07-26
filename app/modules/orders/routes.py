@@ -86,3 +86,23 @@ async def cancel_order(
 ):
     service = OrderService(db)
     return await service.cancel_order(order_id, user_id=current_user.id, current_user=current_user)
+
+@router.post("/{order_id}/allocate", response_model=OrderResponse)
+async def allocate_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(admin_or_store_manager)
+):
+    """Atomically allocate/reserve inventory for an order."""
+    service = OrderService(db)
+    return await service.allocate_order(order_id, user_id=_current_user.id)
+
+@router.post("/{order_id}/release", response_model=OrderResponse)
+async def release_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(admin_or_store_manager)
+):
+    """Release all active inventory reservations for an order."""
+    service = OrderService(db)
+    return await service.release_order(order_id, user_id=_current_user.id)

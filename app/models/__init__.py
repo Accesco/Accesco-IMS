@@ -13,6 +13,9 @@ from app.models.community import Community
 from app.models.batch import Batch
 from app.models.audit import AuditLog
 from app.models.replenishment import ReplenishmentRecommendation
+# WMS Module Additions
+from app.models.notification import Notification
+from app.models.picking import PickWave, PickTask, PickTaskItem
 
 __all__ = [
     "Base",
@@ -35,4 +38,9 @@ __all__ = [
     "AuditLog",
     # Phase 3 Exports
     "ReplenishmentRecommendation",
+    # WMS Module Exports
+    "Notification",
+    "PickWave",
+    "PickTask",
+    "PickTaskItem",
 ]
