@@ -86,7 +86,7 @@ class InventoryService:
              
         return refreshed_item
 
-    async def reserve_stock(self, reservation_data: InventoryReservationCreate, user_id: Optional[int] = None) -> InventoryReservation:
+    async def reserve_stock(self, reservation_data: InventoryReservationCreate, user_id: Optional[int] = None, auto_commit: bool = True) -> InventoryReservation:
         """
         Reserves inventory items. Implements negative stock prevention and row-level locking.
         Reserving: available_quantity goes down, reserved_quantity goes up.
@@ -152,13 +152,15 @@ class InventoryService:
                 }
             )
 
-        # Commit transaction and return refreshed schema [1]
-        await self.repo.db.commit()
-        refreshed_res = await self.repo.get_reservation_by_id(res.id)
-        if not refreshed_res:
-            raise ResourceNotFoundException("Failed to load reservation after database commit")
+        if auto_commit:
+            # Commit transaction and return refreshed schema [1]
+            await self.repo.db.commit()
+            refreshed_res = await self.repo.get_reservation_by_id(res.id)
+            if not refreshed_res:
+                raise ResourceNotFoundException("Failed to load reservation after database commit")
+            return refreshed_res
             
-        return refreshed_res
+        return res
 
     async def confirm_reservation(self, reservation_id: int, user_id: Optional[int] = None) -> InventoryReservation:
         res = await self.repo.get_reservation_by_id_with_lock(reservation_id)
@@ -205,7 +207,7 @@ class InventoryService:
              
         return refreshed_res
 
-    async def release_reservation(self, reservation_id: int, status: str = "CANCELLED", user_id: Optional[int] = None) -> InventoryReservation:
+    async def release_reservation(self, reservation_id: int, status: str = "CANCELLED", user_id: Optional[int] = None, auto_commit: bool = True) -> InventoryReservation:
         res = await self.repo.get_reservation_by_id_with_lock(reservation_id)
         if not res:
             raise ResourceNotFoundException(f"Reservation {reservation_id} not found")
@@ -245,12 +247,14 @@ class InventoryService:
             }
         )
 
-        await self.repo.db.commit()
-        refreshed_res = await self.repo.get_reservation_by_id(res.id)
-        if not refreshed_res:
-             raise ResourceNotFoundException("Failed to load reservation after database commit")
-             
-        return refreshed_res
+        if auto_commit:
+            await self.repo.db.commit()
+            refreshed_res = await self.repo.get_reservation_by_id(res.id)
+            if not refreshed_res:
+                 raise ResourceNotFoundException("Failed to load reservation after database commit")
+            return refreshed_res
+            
+        return res
 
     async def release_expired_reservations(self) -> int:
         expired = await self.repo.get_expired_reservations()

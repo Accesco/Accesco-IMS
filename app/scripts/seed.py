@@ -23,6 +23,7 @@ ROLES = [
     {"name": "StoreManager", "description": "Manager of specific dark stores"},
     {"name": "ProcurementManager", "description": "Responsible for managing purchase orders and suppliers"},
     {"name": "InventoryManager", "description": "Responsible for dark store stock levels"},
+    {"name": "WarehouseStaff", "description": "Warehouse operational staff (Pickers)"},
     {"name": "Viewer", "description": "Read-only access to IMS dashboard"}
 ]
 

@@ -40,3 +40,11 @@ api_router.include_router(audit_router)
 
 # Phase 3 Addition: Include Replenishment Router
 api_router.include_router(replenishment_router)
+
+# WMS Module Addition: Include Notifications Router
+from app.modules.notifications.routes import router as notifications_router
+api_router.include_router(notifications_router)
+
+# WMS Module Addition: Include Picking Router
+from app.modules.picking.routes import router as picking_router
+api_router.include_router(picking_router)
