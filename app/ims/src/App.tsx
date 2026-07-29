@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
+import ProfilePage from './ProfilePage';
+
 
 type StockStatus = 'Healthy' | 'Low' | 'Out of Stock' | 'Excess';
 
@@ -26,10 +28,10 @@ const stockItems: StockItem[] = [
 type NavIconName = 'dashboard' | 'ledger' | 'discrepancy' | 'writeoff' | 'clock';
 type MetricIconName = 'package' | 'building' | 'warning' | 'empty-package';
 
-const navigation: { icon: NavIconName; label: string }[] = [
+const navigation: { icon: NavIconName; label: string; badge?: number }[] = [
   { icon: 'dashboard', label: 'Dashboard' },
   { icon: 'ledger', label: 'Stock Ledger' },
-  { icon: 'discrepancy', label: 'Discrepancy Queue' },
+  { icon: 'discrepancy', label: 'Discrepancy Queue', badge: 12 },
   { icon: 'writeoff', label: 'Write-off Approvals' },
   { icon: 'clock', label: 'Reservation Overrides' },
 ];
@@ -42,8 +44,10 @@ const locations = [
   { icon: '♙', title: 'DS-HSR-02', subtitle: 'HSR Layout' },
 ];
 
+const profileName = 'R. Iyer';
+
 type SortKey = 'sku' | 'title' | 'location' | 'inventory' | 'reserved' | 'available' | 'value' | 'status';
-type ViewName = 'Stock Ledger' | 'Discrepancy Queue' | 'Write-off Approvals' | 'Reservation Overrides';
+type ViewName = 'Dashboard' | 'Stock Ledger' | 'Discrepancy Queue' | 'Write-off Approvals' | 'Reservation Overrides'|'Profile';
 
 function ChevronIcon({ direction = 'down' }: { direction?: 'down' | 'left' | 'right' }) {
   const rotation = direction === 'left' ? 'rotate(90 10 10)' : direction === 'right' ? 'rotate(-90 10 10)' : undefined;
@@ -210,6 +214,235 @@ function MetricCard({ icon, label, value, note, tone, growth }: { icon: MetricIc
       {growth && <em>↑ {growth}</em>}
       <p>{note}</p>
     </article>
+  );
+}
+
+type DashboardIconName =
+  | 'package'
+  | 'building'
+  | 'warning'
+  | 'empty'
+  | 'clock'
+  | 'hourglass'
+  | 'exposure'
+  | 'recount'
+  | 'clipboard'
+  | 'camera'
+  | 'insight';
+
+function DashboardIcon({ name }: { name: DashboardIconName }) {
+  if (name === 'building') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V7l9-4v18M13 9h7v12M8 8v1M8 12v1M8 16v1M17 12v1M17 16v1M2 21h20" /></svg>;
+  }
+  if (name === 'warning') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 4.6 2.9 18a1.5 1.5 0 0 0 1.3 2.2h15.6a1.5 1.5 0 0 0 1.3-2.2L13.7 4.6a1.9 1.9 0 0 0-3.4 0Z" /><path d="M12 9v4.5M12 17h.01" /></svg>;
+  }
+  if (name === 'empty') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" /><path d="m4.4 7.7 7.6 4.4 7.6-4.4M12 12.1V21M15.5 5 8 9.4" /><circle cx="18" cy="17.5" r="3" /><path d="m17 16.5 2 2M19 16.5l-2 2" /></svg>;
+  }
+  if (name === 'clock') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 7v5l3.5 2M18.5 18.5 21 21" /></svg>;
+  }
+  if (name === 'hourglass') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10M7 21h10M8 3c0 4 1 5.5 4 9-3 3.5-4 5-4 9M16 3c0 4-1 5.5-4 9 3 3.5 4 5 4 9" /></svg>;
+  }
+  if (name === 'exposure') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="3" /><circle cx="12" cy="12" r="3.2" /><path d="M8 3v4M16 3v4" /></svg>;
+  }
+  if (name === 'recount') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5" /><path d="M6.1 8.2A7 7 0 0 1 18.7 10M17.9 15.8A7 7 0 0 1 5.3 14" /></svg>;
+  }
+  if (name === 'clipboard') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4.5" width="14" height="16" rx="2" /><path d="M9 4.5V3h6v1.5M8.5 10h7M8.5 14h5" /></svg>;
+  }
+  if (name === 'camera') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h3l1.4-2h7.2l1.4 2h3v10H4Z" /><circle cx="12" cy="13.5" r="3.2" /></svg>;
+  }
+  if (name === 'insight') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 13.5 8.5 19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3Z" /><path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z" /></svg>;
+  }
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" /><path d="m4.4 7.7 7.6 4.4 7.6-4.4M12 12.1V21M15.5 5 8 9.4" /></svg>;
+}
+
+const dashboardActivities = [
+  { icon: 'package' as const, tone: 'purple', title: 'Recount completed for Frozen Green Peas 500g', meta: 'DS-IND-07  •  Recount #3', time: '6m ago' },
+  { icon: 'warning' as const, tone: 'orange', title: 'Low stock alert for Cola 500ml', meta: 'DC-BLR-01  •  186 units remaining', time: '15m ago' },
+  { icon: 'clipboard' as const, tone: 'violet', title: 'Write-off approved for Bath Soap 125g', meta: 'DS-IND-07  •  Qty: 52', time: '1h ago' },
+  { icon: 'camera' as const, tone: 'blue', title: 'New discrepancy raised for Toned Milk 1L', meta: 'DS-KOR-04  •  Variance: -96', time: '2h ago' },
+  { icon: 'recount' as const, tone: 'green', title: 'Reservation extended for Whole Wheat Bread 400g', meta: 'DS-HSR-02  •  Extended by 1 hour', time: '3h ago' },
+  { icon: 'empty' as const, tone: 'red', title: 'Out-of-stock alert resolved for Paper Towels', meta: 'DC-BLR-01  •  Replenishment received', time: '5h ago' },
+];
+
+function Dashboard({
+  setActiveView,
+  showToast,
+}: {
+  setActiveView: (view: ViewName) => void;
+  showToast: (message: string) => void;
+}) {
+  const [period, setPeriod] = useState('Today');
+  const [periodOpen, setPeriodOpen] = useState(false);
+  const [showAllActivity, setShowAllActivity] = useState(false);
+  const activities = showAllActivity ? dashboardActivities : dashboardActivities.slice(0, 4);
+
+  const openView = (view: ViewName, message: string) => {
+    setActiveView(view);
+    showToast(message);
+  };
+
+  return (
+    <section className="dashboard-page">
+      <div className="dashboard-welcome">
+        <div>
+          <h2>Welcome back ! </h2>
+          <p>Here’s what’s happening across your locations {period === 'Today' ? 'today' : `in the ${period.toLowerCase()}`}.</p>
+        </div>
+        <div className="dashboard-filter">
+          <button onClick={() => setPeriodOpen(current => !current)} aria-expanded={periodOpen}>
+            <FilterIcon /><strong>{period === 'Today' ? 'Filters' : period}</strong><ChevronIcon />
+          </button>
+          {periodOpen && (
+            <div>
+              {['Today', 'Last 7 days', 'Last 30 days'].map(option => (
+                <button
+                  key={option}
+                  className={period === option ? 'active' : ''}
+                  onClick={() => {
+                    setPeriod(option);
+                    setPeriodOpen(false);
+                    showToast(`${option} dashboard selected`);
+                  }}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="dashboard-kpis">
+        <button className="dashboard-kpi primary" onClick={() => openView('Stock Ledger', 'Stock Ledger opened')}>
+          <div><small>Total SKUs</small><strong>4,583</strong><p><em>↑ 3%</em><span>vs last 7 days</span></p></div>
+          <b><DashboardIcon name="package" /></b>
+        </button>
+        <button className="dashboard-kpi" onClick={() => openView('Stock Ledger', 'All locations opened')}>
+          <div><small>Active Locations</small><strong>4</strong><p>All locations operational</p></div>
+          <b className="blue"><DashboardIcon name="building" /></b>
+        </button>
+        <button className="dashboard-kpi" onClick={() => openView('Stock Ledger', 'Low-stock items opened')}>
+          <div><small>Low Stock Items</small><strong>18</strong><p>Need attention</p></div>
+          <b className="orange"><DashboardIcon name="warning" /></b>
+        </button>
+        <button className="dashboard-kpi" onClick={() => openView('Stock Ledger', 'Out-of-stock items opened')}>
+          <div><small>Out of Stock Items</small><strong>3</strong><p>Require replenishment</p></div>
+          <b className="red"><DashboardIcon name="empty" /></b>
+        </button>
+        <button className="dashboard-kpi" onClick={() => openView('Write-off Approvals', 'Pending approvals opened')}>
+          <div><small>Pending Approvals</small><strong>15</strong><p>Across workflows</p></div>
+          <b className="violet"><DashboardIcon name="clock" /></b>
+        </button>
+      </div>
+
+      <div className="dashboard-middle">
+        <article className="dashboard-panel inventory-overview">
+          <h3>Inventory Overview</h3>
+          <div>
+            <div className="dashboard-donut"><span><strong>4,583</strong><small>Total SKUs</small></span></div>
+            <ul>
+              <li><i className="healthy-dot" /><span>Healthy<strong>3,413 (74.5%)</strong></span></li>
+              <li><i className="low-dot" /><span>Low<strong>842 (18.4%)</strong></span></li>
+              <li><i className="out-dot" /><span>Out of Stock<strong>203 (4.4%)</strong></span></li>
+              <li><i className="excess-dot" /><span>Excess<strong>125 (2.7%)</strong></span></li>
+            </ul>
+          </div>
+        </article>
+
+        <article className="dashboard-panel inventory-value-chart">
+          <h3>Inventory Value (INR)</h3>
+          <div className="chart-value"><strong>₹ 48,72,350</strong><em>↑ 8.6%</em></div>
+          <p>vs last 7 days</p>
+          <svg viewBox="0 0 520 165" preserveAspectRatio="none" role="img" aria-label="Inventory value increased over seven days">
+            <defs>
+              <linearGradient id="dashboardArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#7d2be2" stopOpacity=".34" />
+                <stop offset="1" stopColor="#7d2be2" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d="M8 130 C48 113 76 111 111 116 C151 122 173 120 206 92 C241 61 270 54 304 73 C336 91 359 67 391 55 C426 42 455 51 486 18 L512 4 L512 158 L8 158Z" fill="url(#dashboardArea)" />
+            <path d="M8 130 C48 113 76 111 111 116 C151 122 173 120 206 92 C241 61 270 54 304 73 C336 91 359 67 391 55 C426 42 455 51 486 18 L512 4" fill="none" stroke="#7b29df" strokeWidth="3" strokeLinecap="round" />
+          </svg>
+          <div className="chart-labels"><span>12 May</span><span>13 May</span><span>14 May</span><span>15 May</span><span>16 May</span><span>17 May</span><span>18 May</span></div>
+        </article>
+
+        <article className="dashboard-panel discrepancy-card">
+          <h3>Discrepancy Summary</h3>
+          <div className="discrepancy-links">
+            <button onClick={() => openView('Discrepancy Queue', 'Awaiting-review items opened')}>
+              <i className="purple"><DashboardIcon name="hourglass" /></i><span>Awaiting Review</span><strong>5</strong><b>›</b>
+            </button>
+            <button onClick={() => openView('Discrepancy Queue', 'Variance exposure opened')}>
+              <i className="violet"><DashboardIcon name="exposure" /></i><span>Variance Exposure (INR)</span><strong className="danger">₹ 12,151</strong><b>›</b>
+            </button>
+            <button onClick={() => openView('Discrepancy Queue', 'High-impact discrepancies opened')}>
+              <i className="red"><DashboardIcon name="warning" /></i><span>High Impact Discrepancies</span><strong>2</strong><b>›</b>
+            </button>
+            <button onClick={() => openView('Discrepancy Queue', 'Recounts in progress opened')}>
+              <i className="blue"><DashboardIcon name="recount" /></i><span>Recount In Progress</span><strong>3</strong><b>›</b>
+            </button>
+          </div>
+          <button className="dashboard-link-button" onClick={() => openView('Discrepancy Queue', 'Discrepancy Queue opened')}>
+            View Discrepancy Queue <span>→</span>
+          </button>
+        </article>
+      </div>
+
+      <div className="dashboard-bottom">
+        <article className="dashboard-panel location-performance">
+          <h3>Location Performance</h3>
+          <div className="location-performance-head"><span>LOCATION</span><span>HEALTHY %</span><span>LOW STOCK</span><span>OUT OF STOCK</span></div>
+          {[
+            ['DC-BLR-01', 82, 6, 1],
+            ['DS-KOR-04', 76, 7, 1],
+            ['DS-IND-07', 88, 3, 1],
+            ['DS-HSR-02', 79, 2, 0],
+          ].map(([location, healthy, low, out]) => (
+            <button key={location} onClick={() => openView('Stock Ledger', `${location} opened`)}>
+              <strong>{location}</strong>
+              <span><em>{healthy}%</em><i><b style={{ width: `${healthy}%` }} /></i></span>
+              <small>{low}</small><small>{out}</small>
+            </button>
+          ))}
+          <button className="dashboard-link-button" onClick={() => openView('Stock Ledger', 'All locations opened')}>
+            View all locations <span>→</span>
+          </button>
+        </article>
+
+        <article className="dashboard-panel recent-activity">
+          <div className="panel-heading">
+            <h3>Recent Activity</h3>
+            <button onClick={() => setShowAllActivity(current => !current)}>{showAllActivity ? 'Show less' : 'View all'}</button>
+          </div>
+          <div>
+            {activities.map(activity => (
+              <button key={`${activity.title}-${activity.time}`} onClick={() => showToast(activity.title)}>
+                <i className={activity.tone}><DashboardIcon name={activity.icon} /></i>
+                <span><strong>{activity.title}</strong><small>{activity.meta}</small></span>
+                <time>{activity.time}</time>
+              </button>
+            ))}
+          </div>
+        </article>
+
+        <article className="dashboard-panel insight-panel">
+          <div className="insight-card">
+            <div className="insight-title"><i><DashboardIcon name="insight" /></i><strong>AI Insight</strong></div>
+            <p><strong>3 consecutive count issues detected in DS-IND-07.</strong> Consider escalated audit for improved accuracy.</p>
+            <button onClick={() => openView('Discrepancy Queue', 'Full AI insight opened')}>View full insight <span>→</span></button>
+          </div>
+        </article>
+      </div>
+    </section>
   );
 }
 
@@ -958,6 +1191,11 @@ export default function App() {
   const [activeView, setActiveView] = useState<ViewName>('Stock Ledger');
   const [toast, setToast] = useState('');
   const toastTimer = useRef<number | null>(null);
+  const [user, setUser] = useState({
+  name: "R. Iyer",
+  role: "Inventory Manager",
+  email: "r.iyer@accesco.in"
+});
 
   const showToast = (message: string) => {
     setToast(message);
@@ -1018,31 +1256,32 @@ export default function App() {
       <aside className={mobileNav ? 'sidebar open' : 'sidebar'}>
         <div className="sidebar-brand">
           <img src="/accesco-logo.png" alt="Accesco" />
-          <div><strong>Accesco</strong><small>LIVING, REDEFINED</small></div>
+          <div><strong>accesco</strong><small>LIVING, REDEFINED</small></div>
           <button onClick={() => setMobileNav(false)}>×</button>
         </div>
 
         <section className="manager-card">
-          <span>R</span>
-          <div><strong>R. Iyer</strong><small>4 assigned locations</small></div>
-        </section>
+  <span>R</span>
+  <div>
+    <strong>{profileName}</strong>
+    <small>4 assigned locations</small>
+  </div>
+</section>
 
         <nav>
-          {navigation.map(({ icon, label }) => (
+          {navigation.map(({ icon, label, badge }) => (
             <button
               key={label}
               className={activeView === label ? 'active' : ''}
               onClick={() => {
-                if (label === 'Stock Ledger' || label === 'Discrepancy Queue' || label === 'Write-off Approvals' || label === 'Reservation Overrides') {
+                if (label === 'Dashboard' || label === 'Stock Ledger' || label === 'Discrepancy Queue' || label === 'Write-off Approvals' || label === 'Reservation Overrides') {
                   setActiveView(label);
                   setMobileNav(false);
                   showToast(`${label} opened`);
-                } else {
-                  showToast(`${label} will open when its frontend screen is added`);
                 }
               }}
             >
-              <span><NavIcon name={icon} /></span><b>{label}</b>
+              <span><NavIcon name={icon} /></span><b>{label}</b>{badge && <em>{badge}</em>}
             </button>
           ))}
         </nav>
@@ -1110,11 +1349,18 @@ export default function App() {
                   setNotificationsOpen(false);
                 }}
               >
-                <span>A</span><strong>admin</strong><ChevronIcon />
+                <span>A</span><strong>{profileName}</strong><ChevronIcon />
               </button>
               {adminOpen && (
                 <div className="action-menu admin-menu">
-                  <button onClick={() => showToast('Profile selected')}>My profile</button>
+                  <button
+  onClick={() => {
+    setActiveView('Profile');
+    setAdminOpen(false);
+  }}
+>
+  My profile
+</button>
                   <button onClick={() => showToast('Settings selected')}>Settings</button>
                   <button onClick={() => showToast('Signed out of demo session')}>Sign out</button>
                 </div>
@@ -1124,7 +1370,7 @@ export default function App() {
         </header>
 
         <main>
-          <section className="location-row">
+          {activeView !== 'Dashboard' && <section className="location-row">
             <label>SELECT LOCATION</label>
             <div className="location-scroll">
               {locations.map(location => (
@@ -1172,9 +1418,17 @@ export default function App() {
                 )}
               </div>
             )}
-          </section>
+          </section>}
 
-          {activeView === 'Reservation Overrides' ? (
+{activeView === 'Profile' ? (
+ <ProfilePage 
+  user={user}
+  setUser={setUser}
+/>
+
+) : activeView === 'Dashboard' ? (
+  <Dashboard setActiveView={setActiveView} showToast={showToast} />
+          ) : activeView === 'Reservation Overrides' ? (
             <ReservationOverrides activeLocation={activeLocation} showToast={showToast} />
           ) : activeView === 'Discrepancy Queue' ? (
             <DiscrepancyQueue activeLocation={activeLocation} showToast={showToast} />
@@ -1309,7 +1563,7 @@ export default function App() {
                     <button className="nav-button" disabled={currentPage === 459} onClick={() => setCurrentPage(459)} aria-label="Last page"><PageEdgeIcon direction="last" /></button>
                   </nav>
                 </div>
-              </footer>
+              </footer>const [activePage, setActivePage] = useState("dashboard");
             </article>
           </section>
             </>
