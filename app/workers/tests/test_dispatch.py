@@ -1,6 +1,6 @@
 """
 Tests for Dispatch Module — API + Service level
-
+Issue #5
 """
 
 import os, tempfile
@@ -57,7 +57,7 @@ async def http_client(db: AsyncSession):
     app.dependency_overrides.pop(viewer_roles, None)
 
 
-
+# ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async def _order(db, status="CONFIRMED", assignment_status="UNASSIGNED",
                  rider_id=None, customer_id=1):

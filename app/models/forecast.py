@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from app.models.base import Base, TimestampMixin
 
-# Import under TYPE_CHECKING to satisfy Pylance without circular loops [1.1.6, 1.1.9]
+
 if TYPE_CHECKING:
     from app.models.store import Store
     from app.models.community import Community

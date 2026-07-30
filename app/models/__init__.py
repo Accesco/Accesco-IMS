@@ -15,6 +15,7 @@ from app.models.batch import Batch
 # Phase 3 Additions
 from app.models.sla import SLAAlert
 from app.models.forecast import ForecastMetric, CommunityDynamicWindow
+from app.models.dispatch_latency import DispatchLatencySample
 
 __all__ = [
     "Base",
@@ -36,5 +37,6 @@ __all__ = [
     # Phase 3 Exports
     "SLAAlert",
     "ForecastMetric",
-    "CommunityDynamicWindow"
+    "CommunityDynamicWindow",
+    "DispatchLatencySample",
 ]
