@@ -18,24 +18,21 @@ function App() {
         <Header />
 
         <section className="dashboard-content">
-
-
           <div className="page-header-row">
             <div className="page-title">
-            <h1>WMS Control Center</h1>
-            <p>Warehouse operations overview • Live simulation</p>
+              <h1>WMS Control Center</h1>
+              <p>Warehouse operations overview • Live simulation</p>
+            </div>
+
+            <div className="quick-actions">
+              <button type="button">Receive Shipment</button>
+              <button type="button">Create Pick Wave</button>
+              <button type="button">Dispatch Batch</button>
+              <button type="button">Add Warehouse</button>
+            </div>
           </div>
 
-  <div className="quick-actions">
-    <button type="button">Receive Shipment</button>
-    <button type="button">Create Pick Wave</button>
-    <button type="button">Dispatch Batch</button>
-    <button type="button">Add Warehouse</button>
-  </div>
-</div>
-
-<WarehouseStatus/>
-
+          <WarehouseStatus />
 
           <div className="kpi-grid">
             {kpiCards.map((card) => (
