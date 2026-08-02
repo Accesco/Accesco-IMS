@@ -1,4 +1,5 @@
 import "./App.css";
+import { useState } from "react";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import { kpiCards } from "./data/mockData";
@@ -8,12 +9,23 @@ import InventoryAlerts from "./components/InventoryAlerts";
 import SystemHealth from "./components/SystemHealth";
 import DispatchStaging from "./components/DispatchStaging";
 import WarehouseStatus from "./components/Warehouse";
+import ReceivingPanel from "./components/ReceivingQueue";
+import PutawaySlottingPanel from "./components/PutawaySlottingPanel";
+import LocationManagementPanel from "./components/LocationManagementPanel";
+import QualityCompliancePanel from "./components/QualityCompliancePanel";
+import ReportsPanel from "./components/ReportPanel";
+
+
 
 function App() {
+  const [activeSection, setActiveSection] = useState("KPI Dashboard");
+  
   return (
     <div className="app-shell">
-      <Sidebar />
-
+      <Sidebar 
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+      />
       <main className="main-content">
         <Header />
 
@@ -32,23 +44,77 @@ function App() {
             </div>
           </div>
 
-          <WarehouseStatus />
+          {activeSection === "KPI Dashboard" && (
+            <>
+              <WarehouseStatus />
 
-          <div className="kpi-grid">
-            {kpiCards.map((card) => (
-              <KpiCard key={card.title} {...card} />
-            ))}
-          </div>
+              <div className="kpi-grid">
+                {kpiCards.map((card) => (
+                  <KpiCard key={card.title} {...card} />
+                ))}
+              </div>
 
-          <div className="dashboard-grid">
-            <PickingQueue />
-            <DispatchStaging />
+              <div className="dashboard-grid">
+                <div className="side-panels">
+                  <InventoryAlerts />
+                  <SystemHealth />
+                </div>
+              </div>
+            </>
+          )}
 
-            <div className="side-panels">
-              <InventoryAlerts />
-              <SystemHealth />
+
+          {activeSection === "Receiving" && (
+            <div className="dashboard-grid">
+              <ReceivingPanel/>
             </div>
-          </div>
+          )}
+
+          {activeSection === "Put-away & Slotting" && (
+            <div className="dashboard-grid">
+              <PutawaySlottingPanel/>
+            </div>
+          )} 
+
+
+          {activeSection === "Picking & Packing" && (
+            <div className="dashboard-grid">
+              <PickingQueue />
+            </div>
+          )}
+
+          {activeSection === "Location Management" && (
+            <div className="dashboard-grid">
+              <LocationManagementPanel/>
+            </div>
+          )}
+
+          {activeSection === "Dispatch" && (
+            <div className="dashboard-grid">
+              <DispatchStaging />
+            </div>
+          )}
+
+          {activeSection === "Quality & Compliance" && (
+            <div className="dashboard-grid">
+              <QualityCompliancePanel/>
+            </div>
+          )}
+
+          {activeSection === "Reports" && (
+            <div className="dashboard-grid">
+              <ReportsPanel />
+            </div>
+          )}
+
+
+
+          {activeSection === "Alerts" && (
+            <div className="dashboard-grid">
+              <InventoryAlerts />
+            </div>
+          )}
+
         </section>
       </main>
     </div>

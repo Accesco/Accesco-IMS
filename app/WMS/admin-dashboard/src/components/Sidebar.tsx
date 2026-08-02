@@ -47,7 +47,12 @@ const navSections = [
   },
 ];
 
-function Sidebar() {
+type SidebarProps = {
+  activeSection: string;
+  onSectionChange: (section: string) => void;
+};
+
+function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -57,25 +62,26 @@ function Sidebar() {
 
       <nav className="sidebar-nav">
         {navSections.map((section) => (
-            <div className="sidebar-section" key={section.title}>
-                <p className="sidebar-section-title">{section.title}</p>
-                
+          <div className="sidebar-section" key={section.title}>
+            <p className="sidebar-section-title">{section.title}</p>
+            
             {section.items.map((item) => (
-                <button
+              <button
                 key={item}
-                className={`sidebar-item ${item === "KPI Dashboard" ? "active" : ""}`}
+                className={`sidebar-item ${item === activeSection ? "active" : ""}`}
                 type="button"
-                >
+                onClick={() => onSectionChange(item)}
+              >
                 {(() => {
-                const Icon = iconMap[item];
-                return <Icon size={18} strokeWidth={2} />;
+                  const Icon = iconMap[item];
+                  return <Icon size={18} strokeWidth={2} />;
                 })()}
                 <span>{item}</span>
-                </button>
-                ))}
-            </div>
+              </button>
+            ))}
+          </div>
         ))}
-     </nav>
+      </nav>
 
       <div className="sidebar-certification">
         <strong>ISO 9001 Certified</strong>

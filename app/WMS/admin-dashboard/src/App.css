@@ -706,3 +706,88 @@
   background: #dbeafe;
   color: #1d4ed8;
 }
+
+/*Receiving Queue*/
+.status-pill.in-qc {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-pill.passed,
+.status-pill.completed {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-pill.hold,
+.status-pill.variance {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.status-pill.queued {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+
+/*Putaway SLotting*/
+
+.priority-pill {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.priority-pill.high {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.priority-pill.medium {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.priority-pill.low {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+
+/*Universal*/
+.status-pill.assigned {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+
+/*Location Management Panel*/
+.status-pill.matched {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-pill.recount {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+
+/*Quality Check*/
+.status-pill.in-review {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-pill.action-needed {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.status-pill.resolved {
+  background: #dcfce7;
+  color: #15803d;
+}
