@@ -6,7 +6,6 @@ import {
   ShieldCheck,
   Bell,
   FileText,
-  Settings,
   ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
@@ -21,7 +20,6 @@ const iconMap: Record<string, LucideIcon> = {
   "Quality & Compliance": ShieldCheck,
   Alerts: Bell,
   Reports: FileText,
-  Settings: Settings,
 };
 
 const navSections = [
@@ -43,7 +41,7 @@ const navSections = [
   },
   {
     title: "General",
-    items: ["Reports", "Settings"],
+    items: ["Reports",],
   },
 ];
 
@@ -82,12 +80,6 @@ function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
           </div>
         ))}
       </nav>
-
-      <div className="sidebar-certification">
-        <strong>ISO 9001 Certified</strong>
-        <p>Warehouse operations follow quality and audit standards.</p>
-        <button type="button">View Certificate</button>
-      </div>
     </aside>
   );
 }

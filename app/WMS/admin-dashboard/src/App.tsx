@@ -19,15 +19,20 @@ import ReportsPanel from "./components/ReportPanel";
 
 function App() {
   const [activeSection, setActiveSection] = useState("KPI Dashboard");
-  
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${theme === "dark" ? "dark-mode" : ""}`}>
       <Sidebar 
         activeSection={activeSection}
         onSectionChange={setActiveSection}
       />
       <main className="main-content">
-        <Header />
+        <Header 
+          theme={theme}
+          onToggleTheme={() =>
+            setTheme((current) => (current === "light" ? "dark" : "light"))
+          }  
+        />
 
         <section className="dashboard-content">
           <div className="page-header-row">

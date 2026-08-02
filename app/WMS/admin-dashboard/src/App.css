@@ -55,31 +55,6 @@
   color: #ffffff;
 }
 
-.sidebar-certification {
-  margin-top: auto;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
-  color: #ffffff;
-  border-radius: 18px;
-  padding: 18px;
-}
-
-.sidebar-certification p {
-  margin: 8px 0 14px;
-  color: #dbeafe;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.sidebar-certification button {
-  width: 100%;
-  border: 0;
-  border-radius: 10px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
-  font-weight: 700;
-  cursor: pointer;
-}
 
 .sidebar-section {
   display: flex;
@@ -790,4 +765,78 @@
 .status-pill.resolved {
   background: #dcfce7;
   color: #15803d;
+}
+
+
+/*Night mode - Day mode*/
+
+.app-shell.dark-mode {
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+.dark-mode .main-content {
+  background: #0f172a;
+}
+
+.dark-mode .sidebar,
+.dark-mode .top-header,
+.dark-mode .panel,
+.dark-mode .kpi-card,
+.dark-mode .warehouse-status-card,
+.dark-mode .notification-menu {
+  background: #111827;
+  border-color: #1f2937;
+}
+
+.dark-mode .sidebar-brand,
+.dark-mode .page-title h1,
+.dark-mode .panel-header h2,
+.dark-mode .kpi-card h3,
+.dark-mode .warehouse-status-card h2,
+.dark-mode .alert-item strong,
+.dark-mode .health-item strong,
+.dark-mode .notification-item strong,
+.dark-mode .data-table td {
+  color: #f9fafb;
+}
+
+.dark-mode .page-title p,
+.dark-mode .panel-header p,
+.dark-mode .kpi-card p,
+.dark-mode .warehouse-status-card p,
+.dark-mode .alert-item p,
+.dark-mode .alert-item span,
+.dark-mode .health-item span,
+.dark-mode .notification-item p,
+.dark-mode .notification-item small {
+  color: #9ca3af;
+}
+
+.dark-mode .search-box,
+.dark-mode .header-filters select,
+.dark-mode .icon-button,
+.dark-mode .warehouse-status-item,
+.dark-mode .alert-item,
+.dark-mode .health-item {
+  background: #1f2937;
+  border-color: #374151;
+  color: #e5e7eb;
+}
+
+.dark-mode .search-box input {
+  color: #f9fafb;
+}
+
+.dark-mode .data-table th {
+  background: #1f2937;
+  color: #cbd5e1;
+}
+
+.dark-mode .data-table th,
+.dark-mode .data-table td,
+.dark-mode .panel-header,
+.dark-mode .notification-menu-header,
+.dark-mode .notification-item {
+  border-color: #374151;
 }

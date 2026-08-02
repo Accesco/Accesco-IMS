@@ -1,75 +1,65 @@
-# React + TypeScript + Vite
+# WMS Admin Dashboard Handoff
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Overview
+This is a React + TypeScript WMS Admin Dashboard built for Accesco Living. It is currently a frontend-only dashboard using mock data. The goal is to represent the warehouse workflow from receiving to dispatch and reporting.
 
-Currently, two official plugins are available:
+## Tech Stack
+- React
+- TypeScript
+- Vite
+- Lucide React
+- CSS
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Current Features Completed
+- Sidebar navigation with grouped WMS sections
+- Header with search, warehouse filters, status filters, and notification dropdown
+- KPI Dashboard with WMS performance cards
+- Live Warehouse Status card
+- Receiving page
+- Put-away & Slotting page
+- Picking & Packing page
+- Location Management page
+- Dispatch page
+- Quality & Compliance page
+- Alerts page
+- Reports page
+- Mock data stored in `src/data/mockData.ts`
 
-## React Compiler
+## WMS Flow Covered
+Receiving -> Put-away -> Slotting -> Picking -> Packing -> Inventory Location -> Dispatch -> Quality/Reports
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Important Files
+- `src/App.tsx` - controls active sidebar section and page rendering
+- `src/components/Sidebar.tsx` - sidebar navigation
+- `src/components/Header.tsx` - top search, filters, and notifications
+- `src/data/mockData.ts` - all mock dashboard data
+- `src/components/*Panel.tsx` - individual WMS dashboard sections
 
-## Expanding the ESLint configuration
+## Current Limitation
+This dashboard is not connected to backend APIs yet. All data is currently mocked in `src/data/mockData.ts`.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Suggested Next Tasks
+- Add a dedicated Packing panel
+- Add a Settings page
+- Add responsive layout for tablet/mobile
+- Add loading, error, and empty states
+- Replace mock data with backend API responses
+- Add charts for trends and performance analytics
+- Fix any visible text encoding artifacts
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Suggested Backend API Integration
+Future backend endpoints may include:
+- `/api/v1/wms/kpis`
+- `/api/v1/wms/receiving`
+- `/api/v1/wms/putaway`
+- `/api/v1/wms/picking`
+- `/api/v1/wms/locations`
+- `/api/v1/wms/dispatch`
+- `/api/v1/wms/quality`
+- `/api/v1/wms/reports`
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
+## How To Run
+```bash
+cd app/WMS/admin-dashboard
+npm install
+npm run dev

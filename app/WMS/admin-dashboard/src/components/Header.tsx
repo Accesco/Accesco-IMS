@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { notifications } from "../data/mockData";
+type HeaderProps = {
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
+};
 
-function Header() {
+
+
+function Header({ theme, onToggleTheme }: HeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   return (
     <header className="top-header">
@@ -67,11 +73,12 @@ function Header() {
         </div>
 
         
-        <button className="icon-button" type="button">
-          ⚙
+
+        <button className="icon-button" type="button" onClick={onToggleTheme}>
+          {theme === "dark" ?  "☀" : "☾"} {/*Make this lucid icons*/}
         </button>
 
-        <div className="profile-chip">AM</div>
+        <div className="profile-chip">A</div>
       </div>
     </header>
   );
