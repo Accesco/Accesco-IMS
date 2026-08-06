@@ -9,10 +9,12 @@ from app.models.outbox import OutboxEvent
 from app.modules.orders.service import OrderService
 from app.modules.orders.schemas import OrderCreate, OrderItemCreate
 
-@pytest.fixture
+import pytest_asyncio
+
+@pytest_asyncio.fixture
 async def setup_test_data(db_session: AsyncSession):
     # Create Store
-    store = Store(name="Order Store", address="Addr", city="City", state="State", active=True)
+    store = Store(name="Order Store", address="Addr", city="City", state="State", active=True, latitude=12.9716, longitude=77.5946)
     db_session.add(store)
     
     # Create Products
@@ -32,6 +34,8 @@ async def test_place_order(db_session: AsyncSession, setup_test_data):
     
     order_data = OrderCreate(
         store_id=store.id,
+        latitude=12.9716,
+        longitude=77.5946,
         items=[
             OrderItemCreate(product_id=p1.id, quantity=2, price=10.50),
             OrderItemCreate(product_id=p2.id, quantity=1, price=20.00)

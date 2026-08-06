@@ -5,15 +5,20 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.core.database import get_db, Base
+from app.core.database import get_db
+from app.models.base import Base
+from app import models  # Register all models for create_all
 
 # Setup in-memory SQLite for testing database operations
-# Note: sqlite+aiosqlite is standard for async testing in python.
+
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+from sqlalchemy.pool import StaticPool
 
 test_engine = create_async_engine(
     TEST_DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool
 )
 
 TestingSessionLocal = async_sessionmaker(
@@ -25,17 +30,11 @@ TestingSessionLocal = async_sessionmaker(
 )
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for each test case."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
 
+import pytest_asyncio
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    # Create tables
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         
@@ -49,7 +48,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         finally:
             await session.close()
             
-    # Clean up tables
+    
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 

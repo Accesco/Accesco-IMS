@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import String, Numeric, ForeignKey, Integer, Float, DateTime
+from sqlalchemy import String, Numeric, ForeignKey, Integer, Float, DateTime, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -30,21 +30,28 @@ class Order(Base, TimestampMixin):
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
 
-    # Zone Metrics (Section 04)
+    # Zone Metrics 
     delivery_zone: Mapped[str] = mapped_column(String(20), default="ZONE_A", nullable=False)
     sla_deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    # Community Flow Batching Attributes (Section 05)
+    # Community Flow Batching Attributes 
     community_id: Mapped[Optional[str]] = mapped_column(ForeignKey("communities.id"), nullable=True)
     batch_id: Mapped[Optional[int]] = mapped_column(ForeignKey("batches.id"), nullable=True)
 
-    # Rider Assignment Engine Attributes (Section 03)
+    # Rider Assignment Engine Attributes 
     rider_id: Mapped[Optional[int]] = mapped_column(ForeignKey("riders.id"), nullable=True)
     assignment_status: Mapped[str] = mapped_column(String(50), default="UNASSIGNED", nullable=False)
     
-    # Offer Timers (Section 11)
+    # Offer Timers 
     offered_rider_id: Mapped[Optional[int]] = mapped_column(ForeignKey("riders.id"), nullable=True)
     assignment_offered_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Set when order enters PICKING state
+    picking_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    #  Set after delivery — True if rider picked up within 2 min and delivered within SLA
+    assignment_was_optimal: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    # actual_delivered_at: Set when order is delivered
+    actual_delivered_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     rider: Mapped[Optional[Rider]] = relationship("Rider", foreign_keys=[rider_id])

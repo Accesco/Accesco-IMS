@@ -21,9 +21,15 @@ class Rider(Base, TimestampMixin):
     consecutive_declines: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
-    # Shift Lifecycle Columns (Section 03)
+    # Shift Lifecycle Columns 
     shift_start_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     shift_end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # #Set True when rider is force-assigned after repeated declines; flagged for ops review
+    mandatory_assignment_flag: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    #  Accumulated active delivery seconds in current shift; used for utilisation reporting
+    shift_active_seconds: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
     @validates("status")
     def validate_status(self, key, value):

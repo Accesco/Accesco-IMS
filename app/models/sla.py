@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from razorpay import Order
+from typing import TYPE_CHECKING
 from sqlalchemy import String, Integer, ForeignKey, DateTime, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.order import Order
 
 
 class SLAAlert(Base, TimestampMixin):

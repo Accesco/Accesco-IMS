@@ -1,6 +1,6 @@
 """
 Tests for Rider Management — API + Service level
-Issue #5
+
 """
 
 import os, tempfile
@@ -8,13 +8,14 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from datetime import datetime, timezone, timedelta
 
 import app.models  # noqa: F401 — registers all ORM models with Base.metadata
 from app.main import app
 from app.models.base import Base  # use the populated Base, not app.core.database's
 from app.core.database import get_db
 from app.models.rider import Rider
-from app.modules.riders.service import RiderService
+from app.modules.riders.service import RiderService, ResourceNotFoundException
 from app.modules.riders.repository import RiderRepository
 from app.modules.riders.schemas import RiderCreate
 from app.core.exceptions import IMSException
@@ -37,24 +38,38 @@ async def db() -> AsyncSession:
 
 @pytest_asyncio.fixture
 async def http_client(db: AsyncSession):
+    from app.modules.riders.routes import admin_or_store_manager, all_authorized
+    
     async def _override():
         yield db
+        
+    async def _mock_user():
+        return {"id": 1, "role": "Admin"}
+        
     app.dependency_overrides[get_db] = _override
+    app.dependency_overrides[admin_or_store_manager] = _mock_user
+    app.dependency_overrides[all_authorized] = _mock_user
+    
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
+        
     app.dependency_overrides.pop(get_db, None)
+    app.dependency_overrides.pop(admin_or_store_manager, None)
+    app.dependency_overrides.pop(all_authorized, None)
 
 
 @pytest_asyncio.fixture
 async def seeded_rider(db: AsyncSession) -> Rider:
-    r = Rider(name="Seeded", phone="9000000001", is_available=True, status="ONLINE")
+    r = Rider(name="Seeded", phone="9000000001", is_available=True, status="IDLE",
+              shift_end_time=datetime.now(timezone.utc) + timedelta(hours=8))
     db.add(r); await db.commit(); await db.refresh(r)
     return r
 
 
 @pytest_asyncio.fixture
 async def unavailable_rider(db: AsyncSession) -> Rider:
-    r = Rider(name="Busy", phone="9000000002", is_available=False, status="ASSIGNED")
+    r = Rider(name="Busy", phone="9000000002", is_available=False, status="ASSIGNED",
+              shift_end_time=datetime.now(timezone.utc) + timedelta(hours=8))
     db.add(r); await db.commit(); await db.refresh(r)
     return r
 
@@ -67,14 +82,14 @@ class TestCreateRiderAPI:
         resp = await http_client.post("/api/v1/riders", json={
             "name": "Ravi Kumar", "phone": "9876543210",
             "latitude": 28.6139, "longitude": 77.2090,
-            "is_available": True, "status": "ONLINE",
+            "is_available": True, "status": "IDLE",
         })
         assert resp.status_code == 200
         d = resp.json()
         assert d["name"] == "Ravi Kumar"
         assert d["phone"] == "9876543210"
         assert d["is_available"] is True
-        assert d["status"] == "ONLINE"
+        assert d["status"] == "IDLE"
         assert isinstance(d["id"], int)
 
     @pytest.mark.asyncio
@@ -99,10 +114,10 @@ class TestCreateRiderAPI:
         assert r.json()["longitude"] is None
 
     @pytest.mark.asyncio
-    async def test_default_status_online(self, http_client):
+    async def test_default_status_idle(self, http_client):
         r = await http_client.post("/api/v1/riders", json={"name": "D", "phone": "9444444444"})
         assert r.status_code == 200
-        assert r.json()["status"] == "ONLINE"
+        assert r.json()["status"] == "IDLE"
 
     @pytest.mark.asyncio
     async def test_default_is_available_true(self, http_client):
@@ -173,14 +188,15 @@ class TestRiderService:
         assert r is not None and r.id == seeded_rider.id
 
     @pytest.mark.asyncio
-    async def test_get_by_id_missing_returns_none(self, db):
-        assert await RiderService(db).get_rider(99999) is None
+    async def test_get_by_id_missing_raises(self, db):
+        with pytest.raises(ResourceNotFoundException):
+            await RiderService(db).get_rider(99999)
 
     @pytest.mark.asyncio
-    async def test_defaults_available_online(self, db):
+    async def test_defaults_available_idle(self, db):
         r = await RiderService(db).create_rider(RiderCreate(name="Fr", phone="8000000003"))
         assert r.is_available is True
-        assert r.status == "ONLINE"
+        assert r.status == "IDLE"
 
 
 # ─── Repository Tests ─────────────────────────────────────────────────────────
@@ -194,7 +210,8 @@ class TestRiderRepository:
 
     @pytest.mark.asyncio
     async def test_available_empty_when_all_busy(self, db):
-        db.add(Rider(name="Busy", phone="8100000001", is_available=False, status="ASSIGNED"))
+        db.add(Rider(name="Busy", phone="8100000001", is_available=False, status="ASSIGNED",
+                     shift_end_time=datetime.now(timezone.utc) + timedelta(hours=8)))
         await db.commit()
         assert await RiderRepository(db).get_available_riders() == []
 

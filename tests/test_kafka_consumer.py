@@ -10,7 +10,9 @@ from app.models.inventory import InventoryItem, InventoryReservation
 from app.models.procurement import PurchaseOrder
 from app.workers.kafka_consumer import process_message
 
-@pytest.fixture
+import pytest_asyncio
+
+@pytest_asyncio.fixture
 async def setup_consumer_data(db_session: AsyncSession):
     # Create store
     store = Store(name="Consumer Store", address="Addr", city="City", state="State", active=True)
@@ -25,8 +27,18 @@ async def setup_consumer_data(db_session: AsyncSession):
     inv = InventoryItem(store_id=store.id, product_id=product.id, available_quantity=10, reserved_quantity=0, reorder_level=5)
     db_session.add(inv)
     
+    from datetime import datetime, timezone, timedelta
     # Setup order
-    order = Order(customer_id=1, store_id=store.id, status="PENDING", total_amount=10.00, payment_status="PENDING")
+    order = Order(
+        customer_id=1, 
+        store_id=store.id, 
+        status="PENDING", 
+        total_amount=10.00, 
+        payment_status="PENDING",
+        latitude=12.9716,
+        longitude=77.5946,
+        sla_deadline=datetime.now(timezone.utc) + timedelta(minutes=30)
+    )
     db_session.add(order)
     await db_session.commit()
     
@@ -50,11 +62,13 @@ async def test_consumer_payment_confirmed(db_session: AsyncSession, setup_consum
         "amount": 10.00
     }
     
-    # Patch the session maker used by the worker to return our db_session
-    async def mock_session_maker():
-        return db_session
-        
-    with patch("app.workers.kafka_consumer.async_session_maker", return_value=db_session):
+    class MockSessionContext:
+        async def __aenter__(self):
+            return db_session
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+            
+    with patch("app.workers.kafka_consumer.async_session_maker", return_value=MockSessionContext()):
         await process_message("payments.confirmed", payload)
         
     # Reload and verify order status
@@ -94,7 +108,13 @@ async def test_consumer_inventory_low(db_session: AsyncSession, setup_consumer_d
         "reorder_level": 5
     }
     
-    with patch("app.workers.kafka_consumer.async_session_maker", return_value=db_session):
+    class MockSessionContext:
+        async def __aenter__(self):
+            return db_session
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    with patch("app.workers.kafka_consumer.async_session_maker", return_value=MockSessionContext()):
         await process_message("inventory.low", payload)
         
     # Verify draft PO was created
@@ -140,7 +160,13 @@ async def test_consumer_order_cancelled(db_session: AsyncSession, setup_consumer
         "order_id": order.id
     }
     
-    with patch("app.workers.kafka_consumer.async_session_maker", return_value=db_session):
+    class MockSessionContext:
+        async def __aenter__(self):
+            return db_session
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    with patch("app.workers.kafka_consumer.async_session_maker", return_value=MockSessionContext()):
         await process_message("orders.cancelled", payload)
         
     # Verify reservation released

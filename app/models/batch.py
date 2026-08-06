@@ -26,6 +26,9 @@ class Batch(Base, TimestampMixin):
     dispatch_by: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     assignment_offered_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Number of orders in the batch at time of dispatch
+    actual_batch_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
     orders: Mapped[List[Order]] = relationship("Order", back_populates="batch")
     rider: Mapped[Optional[Rider]] = relationship("Rider", foreign_keys=[rider_id])
     offered_rider: Mapped[Optional[Rider]] = relationship("Rider", foreign_keys=[offered_rider_id])

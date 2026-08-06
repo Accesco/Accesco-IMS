@@ -15,6 +15,6 @@ class Store(Base, TimestampMixin):
     state: Mapped[str] = mapped_column(String(100), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     
-    # Coordinates of Dark Store origin (Section 04)
+    # Coordinates of Dark Store origin 
     latitude: Mapped[float] = mapped_column(Float, nullable=True)
     longitude: Mapped[float] = mapped_column(Float, nullable=True)

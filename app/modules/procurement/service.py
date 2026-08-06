@@ -28,9 +28,10 @@ class ProcurementService:
         po = await self.repo.create_purchase_order(po_data)
         
         # Emit outbox event procurement.created
+        # Use po_data.items (already in memory) to avoid async lazy-load on po.items
         items_payload = [
             {"product_id": item.product_id, "quantity": item.quantity}
-            for item in po.items
+            for item in po_data.items
         ]
         await create_outbox_event(
             self.repo.db,
