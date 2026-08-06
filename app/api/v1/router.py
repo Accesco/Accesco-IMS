@@ -20,6 +20,9 @@ from app.modules.audit.routes import router as audit_router
 # Phase 3 Addition: Import Replenishment Router
 from app.modules.replenishment.routes import router as replenishment_router
 
+# TMS Module Addition: Import ETA Router
+from app.modules.eta.routes import router as eta_router
+
 api_router = APIRouter()
 
 # Include existing routers
@@ -48,3 +51,6 @@ api_router.include_router(notifications_router)
 # WMS Module Addition: Include Picking Router
 from app.modules.picking.routes import router as picking_router
 api_router.include_router(picking_router)
+
+# TMS Addition: Incldue ETA Router
+api_router.include_router(eta_router)

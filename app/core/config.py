@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     REPLENISHMENT_ENGINE_URL: str = "http://localhost:8000"
     REPLENISHMENT_ENGINE_TIMEOUT: int = 30
 
+    # ETA Engine (ML Service)\
+    ETA_ENGINE_URL: str = "http://localhost:8001"
+    ETA_ENGINE_TIMEOUT: int = 30
+    
     model_config = SettingsConfigDict(
         env_file=(".env.example", ".env"),
         env_file_encoding="utf-8",

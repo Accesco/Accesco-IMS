@@ -17,6 +17,9 @@ from app.models.replenishment import ReplenishmentRecommendation
 from app.models.notification import Notification
 from app.models.picking import PickWave, PickTask, PickTaskItem
 
+# Tms Eta Additions
+from app.models.eta import ETAPrediction
+
 __all__ = [
     "Base",
     "User",
@@ -43,4 +46,6 @@ __all__ = [
     "PickWave",
     "PickTask",
     "PickTaskItem",
+    # TSM ETA
+    "ETAPrediction"
 ]
