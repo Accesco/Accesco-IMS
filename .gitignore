@@ -71,3 +71,7 @@ yarn-error.log*
 # Agents / AI config
 .agents/
 .gemini/
+
+# metric csv & json
+*.csv
+*.json
