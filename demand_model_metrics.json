@@ -1,0 +1,32 @@
+{
+  "mae": 4.645490035178169,
+  "rmse": 6.488987597795146,
+  "wape": 0.16227661337190166,
+  "n_train": 3456,
+  "n_valid": 504,
+  "cutoff_date": "2026-06-07",
+  "feature_cols": [
+    "qty_sold_lag_1",
+    "qty_sold_lag_7",
+    "qty_sold_lag_14",
+    "rolling_mean_7d",
+    "rolling_mean_14d",
+    "rolling_mean_30d",
+    "rolling_std_7d",
+    "days_since_last_sale",
+    "day_of_week",
+    "is_weekend",
+    "day_of_month",
+    "month",
+    "is_month_start",
+    "promo_active",
+    "shelf_life_days",
+    "cat_bakery",
+    "cat_beverages",
+    "cat_dairy",
+    "cat_household",
+    "cat_produce",
+    "cat_snacks",
+    "cat_staples"
+  ]
+}
