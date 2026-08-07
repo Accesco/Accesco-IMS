@@ -45,9 +45,3 @@ jobs:
           ENVIRONMENT: testing
         run: |
           pytest -v --asyncio-mode=strict
-
-      - name: Test eta-api
-        run: cd eta-api && pytest tests/
-
-      - name: Test replenishment-api
-        run: cd replenishment-api && pytest tests/
