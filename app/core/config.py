@@ -43,9 +43,14 @@ class Settings(BaseSettings):
     REPLENISHMENT_ENGINE_URL: str = "http://localhost:8000"
     REPLENISHMENT_ENGINE_TIMEOUT: int = 30
 
-    # ETA Engine (ML Service)\
+    # ETA Engine (ML Service)
     ETA_ENGINE_URL: str = "http://localhost:8001"
     ETA_ENGINE_TIMEOUT: int = 30
+
+    # Maintenance Engine (ML Service)
+    MAINTENANCE_ENGINE_URL: str = "http://localhost:8002"
+    MAINTENANCE_ENGINE_TIMEOUT: int = 30
+    TIMEOUT: int = 30
     
     model_config = SettingsConfigDict(
         env_file=(".env.example", ".env"),

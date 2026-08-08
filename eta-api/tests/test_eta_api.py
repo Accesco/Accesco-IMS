@@ -22,11 +22,19 @@ from unittest.mock import patch
 @pytest.fixture(scope="module")
 def client():
     """
-    Starts the FastAPI test client with the real model loaded from the
-    joblib file in the project root.
+    Starts the FastAPI test client with the real model loaded.
+
+    MODEL_PATH is resolved as an absolute path relative to THIS FILE's
+    location, not the process's current working directory -- a bare
+    relative filename here would break depending on where/how CI
+    invokes pytest (e.g. combined multi-service runs, or invocations
+    that don't `cd` into this service directory first). See repo CI
+    history for the FileNotFoundError this caused before the fix.
     """
     import os
-    os.environ["MODEL_PATH"] = "eta_drift_model.joblib"
+    this_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.normpath(os.path.join(this_dir, "..", "eta_drift_model.joblib"))
+    os.environ["MODEL_PATH"] = model_path
     from main import app
     with TestClient(app) as c:
         yield c
